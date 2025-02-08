@@ -169,3 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Other files
+tempverse/shape_data_stream/simple_shape_rotation
+results
+wandb
