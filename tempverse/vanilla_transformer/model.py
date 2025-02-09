@@ -4,13 +4,13 @@ from torch.autograd import Function as Function
 from einops import rearrange
 
 from .block import TransformerBlock
-from ..config import TransformerConfig
+from ..config import VanillaTransformerConfig
 
 
 class VanillaTransformer(nn.Module):
     def __init__(
         self,
-        config: TransformerConfig,
+        config: VanillaTransformerConfig,
         context_size: int,
         enable_amp: bool = False,
     ):

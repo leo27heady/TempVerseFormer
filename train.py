@@ -7,10 +7,12 @@ import torch
 from torch.utils.data import DataLoader
 from dotenv import load_dotenv
 
-from tempverse.config import Config
+from tempverse.config import Config, ConfigGroup, ExperimentTypes
 from tempverse.shape_data_stream import ShapeDataset
 from tempverse.vae import VAE
 from tempverse.rev_transformer import RevFormer
+from tempverse.vanilla_transformer import VanillaTransformer
+from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
 from tempverse.utils import create_timestamp
 
@@ -19,16 +21,17 @@ if __name__ == "__main__":
     load_dotenv()
 
     parser = argparse.ArgumentParser("Temporal Modeling on Simple Shapes Rotation")
-    parser.add_argument("--configs", nargs='+', default=[])
+    parser.add_argument("--config_groups", nargs='+', default=[])
     args = parser.parse_args()
-    
-    for i, config_name in enumerate(args.configs, start=1):
-        # Load config
-        with open(f"configs/{config_name}.json", "r", encoding="utf-8") as json_data:
-            config = Config(**json.load(json_data))
 
-        print(f"Processing config {i}/{len(args.configs)}")
-        print(f"Project: {config.general.project}, Name: {config.general.name}")
+    # Load config group
+    with open(f"configs/{args.config_groups[0]}.json", "r", encoding="utf-8") as json_data:
+        config_group = ConfigGroup(**json.load(json_data))
+    
+    for i, config in enumerate(config_group.group, start=1):
+
+        print(f"Processing config {i}/{len(config_group.group)}")
+        print(f"Task: {config.general.experiment_type.value}, Project: {config.general.project}, Name: {config.general.name}")
 
         device = torch.device("cuda")
 
@@ -40,7 +43,17 @@ if __name__ == "__main__":
 
             print("{}/{} rep".format(j, config.training.num_reps))
 
-            model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
+            match config.general.experiment_type:
+                case ExperimentTypes.TEMP_VERSE_FORMER:
+                    model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
+                case ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP:
+                    model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=False)
+                case ExperimentTypes.VANILLA_TRANSFORMER:
+                    model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
+                case ExperimentTypes.LSTM:
+                    model = Seq2SeqLSTM(config.lstm)
+                case _:
+                    raise ValueError(f"Unknown Experiment Type: {config.general.experiment_type}")
             model.to(device)
 
             vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)

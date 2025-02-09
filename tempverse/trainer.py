@@ -10,6 +10,8 @@ from torchvision.utils import save_image
 
 from .vae import VAE
 from .rev_transformer import RevFormer
+from .vanilla_transformer import VanillaTransformer
+from .lstm import Seq2SeqLSTM
 from .config import TrainingConfig
 
 
@@ -18,7 +20,7 @@ class Trainer():
 
     Parameters
     ----------
-    model : RevFormer
+    model :  RevFormer | VanillaTransformer | Seq2SeqLSTM
     vae_model : VAE
 
     optimizer : torch.optim.Optimizer instance
@@ -35,7 +37,7 @@ class Trainer():
     ):
 
         self.training_config = training_config
-        self.model: RevFormer = model
+        self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM = model
         self.vae_model: VAE = vae_model
         self.optimizer: torch.optim.Optimizer = torch.optim.Adam(
             [
@@ -213,7 +215,7 @@ class Trainer():
                 save_model_path = Path(self.save_dir) / Path(f"inter_models/{pretty_name}")
                 save_model_path.mkdir(parents=True, exist_ok=True)
 
-                torch.save(self.model.state_dict(), save_model_path / "rev-transformer-model.pt")
+                torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
                 torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
             
             if step == self.training_config.steps:
