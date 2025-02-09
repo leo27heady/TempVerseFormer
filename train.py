@@ -67,3 +67,6 @@ if __name__ == "__main__":
 
             with open(f"{directory}/histories.json", "w", encoding="utf-8") as f:
                 json.dump(trainer.histories, f, ensure_ascii=False, indent=4)
+
+            if wandb_runner:
+                wandb_runner.finish(exit_code=0)
