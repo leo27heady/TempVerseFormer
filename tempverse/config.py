@@ -2,6 +2,14 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+
+class ExperimentTypes(Enum):
+    TEMP_VERSE_FORMER: str = "TEMP_VERSE_FORMER"
+    TEMP_VERSE_FORMER_VANILLA_BP: str = "TEMP_VERSE_FORMER_VANILLA_BP"
+    VANILLA_TRANSFORMER: str = "VANILLA_TRANSFORMER"
+    LSTM: str = "LSTM"
+
+
 class TemporalPatterns(Enum):
     ACCELERATION: str = "ACCELERATION"
     DECELERATION: str = "DECELERATION"
@@ -10,9 +18,10 @@ class TemporalPatterns(Enum):
 
 
 class GeneralConfig(BaseModel):
-    project: str = "reversible-transformer"
-    name: str = "reversible-transformer--custom-bp"
-    log_to_wandb: bool = True
+    experiment_type: ExperimentTypes
+    project: str
+    name: str
+    log_to_wandb: bool
 
 
 class IntervalModel(BaseModel):
@@ -25,7 +34,7 @@ class DataConfig(BaseModel):
     render_window_size: int = 64
     im_channels: int = 3
     context_size: int = 12
-    batch_size: int = 64
+    batch_size: int = 16
     time_to_pred: IntervalModel = IntervalModel(min=1, max=6)
 
     # Greater than 0
@@ -57,11 +66,19 @@ class ReverseTransformerConfig(BaseModel):
     depth: int = 8
 
 
-class TransformerConfig(BaseModel):
+class VanillaTransformerConfig(BaseModel):
     input_dim: int = 256
     embed_dim: int = 768
     n_head: int = 8
     depth: int = 8
+
+
+class LSTM_Config(BaseModel):
+    input_dim: int = 256
+    embed_dim: int = 768
+    n_layers: int = 8
+    enc_dropout: float = 0.5
+    dec_dropout: float = 0.5
 
 
 class TrainingConfig(BaseModel):
@@ -80,12 +97,342 @@ class Config(BaseModel):
     data: DataConfig = Field(default_factory=DataConfig)
     vae: VaeConfig = Field(default_factory=VaeConfig)
     rev_transformer: ReverseTransformerConfig = Field(default_factory=ReverseTransformerConfig)
+    vanilla_transformer: VanillaTransformerConfig = Field(default_factory=VanillaTransformerConfig)
+    lstm: LSTM_Config = Field(default_factory=LSTM_Config)
     training: TrainingConfig = Field(default_factory=TrainingConfig)
+
+
+class ConfigGroup(BaseModel):
+    group: list[Config]
 
 
 if __name__ == "__main__":
     import json
 
-    config_dict = Config().model_dump(mode="json")
-    with open("configs/default.json", "w", encoding="utf-8") as f:
-        json.dump(config_dict, f, ensure_ascii=False, indent=4)
+    
+    #####################################
+    ####    GROUP TempVerseFormer    ####
+    #####################################
+    
+    temp_verse_former_group = ConfigGroup(
+        group=[
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former--acceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former--deceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.DECELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former--oscillation",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.OSCILLATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former--interruption",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.INTERRUPTION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former",
+                    name="temp-verse-former--all-patterns",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                )
+            )
+        ]
+    )
+
+    with open("configs/temp-verse-former.json", "w", encoding="utf-8") as f:
+        json.dump(
+            temp_verse_former_group.model_dump(mode="json"), 
+            f, ensure_ascii=False, indent=4
+        )
+
+
+    ##############################################
+    ####    GROUP TempVerseFormerVanillaBP    ####
+    ##############################################
+    
+    temp_verse_former_vanilla_bp_group = ConfigGroup(
+        group=[
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp--acceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp--deceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.DECELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp--oscillation",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.OSCILLATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp--interruption",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.INTERRUPTION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
+                    project="temp-verse-former-vanilla-bp",
+                    name="temp-verse-former-vanilla-bp--all-patterns",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                )
+            )
+        ]
+    )
+
+    with open("configs/temp-verse-former-vanilla-bp.json", "w", encoding="utf-8") as f:
+        json.dump(
+            temp_verse_former_vanilla_bp_group.model_dump(mode="json"), 
+            f, ensure_ascii=False, indent=4
+        )
+
+
+    ########################################
+    ####    GROUP VanillaTransformer    ####
+    ########################################
+    
+    temp_verse_vanilla_transformer = ConfigGroup(
+        group=[
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer--acceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer--deceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.DECELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer--oscillation",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.OSCILLATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer--interruption",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.INTERRUPTION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
+                    project="temp-verse-vanilla-transformer",
+                    name="temp-verse-vanilla-transformer--all-patterns",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                )
+            )
+        ]
+    )
+
+    with open("configs/temp-verse-vanilla-transformer.json", "w", encoding="utf-8") as f:
+        json.dump(
+            temp_verse_vanilla_transformer.model_dump(mode="json"), 
+            f, ensure_ascii=False, indent=4
+        )
+
+
+    ##########################
+    ####    GROUP LSTM    ####
+    ##########################
+    
+    temp_verse_lstm = ConfigGroup(
+        group=[
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm--acceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm--deceleration",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.DECELERATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm--oscillation",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.OSCILLATION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm--interruption",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.INTERRUPTION]
+                )
+            ),
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.LSTM,
+                    project="temp-verse-lstm",
+                    name="temp-verse-lstm--all-patterns",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                )
+            )
+        ]
+    )
+
+    with open("configs/temp-verse-lstm.json", "w", encoding="utf-8") as f:
+        json.dump(
+            temp_verse_lstm.model_dump(mode="json"), 
+            f, ensure_ascii=False, indent=4
+        )
