@@ -30,14 +30,6 @@ if __name__ == "__main__":
         print(f"Processing config {i}/{len(args.configs)}")
         print(f"Project: {config.general.project}, Name: {config.general.name}")
 
-        wandb_runner = None if not config.general.log_to_wandb else wandb.init(
-            # set the wandb project where this run will be logged
-            project=config.general.project,
-            name=config.general.name,
-            # track hyperparameters and run metadata
-            config=config.model_dump(mode="json")
-        )
-
         device = torch.device("cuda")
 
         data_loader = DataLoader(ShapeDataset(device, config.data), batch_size=1)
@@ -56,7 +48,14 @@ if __name__ == "__main__":
                 vae_model.eval()
                 vae_model.requires_grad_(False)
                 vae_model.load_state_dict(torch.load(config.vae.pretrained_vae_path, map_location=device))
-
+            
+            wandb_runner = None if not config.general.log_to_wandb else wandb.init(
+                # set the wandb project where this run will be logged
+                project=config.general.project,
+                name=f"{config.general.name}--{run_timestamp}--{j}",
+                # track hyperparameters and run metadata
+                config=config.model_dump(mode="json")
+            )
             trainer = Trainer(
                 model, vae_model, device,
                 wandb_runner=wandb_runner,  
