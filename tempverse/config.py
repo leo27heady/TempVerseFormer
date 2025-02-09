@@ -57,6 +57,13 @@ class ReverseTransformerConfig(BaseModel):
     depth: int = 8
 
 
+class TransformerConfig(BaseModel):
+    input_dim: int = 256
+    embed_dim: int = 768
+    n_head: int = 8
+    depth: int = 8
+
+
 class TrainingConfig(BaseModel):
     num_reps: int = 1
     steps: int = 50_000
