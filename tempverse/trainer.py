@@ -178,7 +178,7 @@ class Trainer():
                     self.sample_and_save(
                         rearrange(decoder_output, "b t c w h -> t b c w h"), 
                         rearrange(expected_images, "b t c w h -> t b c w h"), 
-                        num_samples=2, 
+                        num_samples=2,  # number of batch samples
                         name=pretty_name,
                         time_to_pred=time_to_pred,
                         angles=angles,

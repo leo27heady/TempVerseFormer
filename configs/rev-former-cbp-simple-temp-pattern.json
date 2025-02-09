@@ -9,7 +9,7 @@
         "render_window_size": 64,
         "im_channels": 3,
         "context_size": 12,
-        "batch_size": 64,
+        "batch_size": 16,
         "time_to_pred": {
             "min": 1,
             "max": 6
@@ -75,7 +75,7 @@
         "depth": 8
     },
     "training": {
-        "num_reps": 1,
+        "num_reps": 5,
         "steps": 50000,
         "lr": 5e-06,
         "weight_decay": 0.0,
