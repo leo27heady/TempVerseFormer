@@ -50,7 +50,7 @@ class RevFormer(nn.Module):
         # layer for final projection. This is the only part of transformer
         # that uses different parameters/FLOPs than a standard transformer model.
         # Note that fusion can be done in several ways, including
-        # more expressive methods like in paper, but we use
+        # more expressive methods like in paper "Reversible Vision Transformers", but they use
         # linear layer + LN for simplicity.
         self.norm = nn.LayerNorm(2 * self.embed_dim)
         self.term_fusion = nn.Sequential(

@@ -75,7 +75,7 @@ class AttentionSubBlock(nn.Module):
 class ReversibleBlock(nn.Module):
     """
     Reversible Blocks for Reversible Vision Transformer.
-    See Section 3.3.2 in paper for details.
+    See Section 3.3.2 in paper "Reversible Vision Transformers" for details.
     """
 
     def __init__(self, dim, num_heads, enable_amp):
@@ -84,7 +84,7 @@ class ReversibleBlock(nn.Module):
         sub-block) and G (MLP sub-block) including layernorm.
         """
         super().__init__()
-        # F and G can be arbitrary functions, here we use
+        # F and G can be arbitrary functions, here they use
         # simple attwntion and MLP sub-blocks using vanilla attention.
         self.F = AttentionSubBlock(
             dim=dim, num_heads=num_heads, enable_amp=enable_amp
@@ -92,8 +92,8 @@ class ReversibleBlock(nn.Module):
 
         self.G = MLPSubblock(dim=dim, enable_amp=enable_amp)
 
-        # note that since all functions are deterministic, and we are
-        # not using any stochastic elements such as dropout, we do
+        # note that since all functions are deterministic, and they are
+        # not using any stochastic elements such as dropout, they do
         # not need to control seeds for the random number generator.
         # To see usage with controlled seeds and dropout, see pyslowfast.
 
@@ -135,7 +135,7 @@ class ReversibleBlock(nn.Module):
         X_2 = Y_2 - G(Y_1), G = MLP
         X_1 = Y_1 - F(X_2), F = Attention
 
-        And we use pytorch native logic carefully to
+        And they use pytorch native logic carefully to
         calculate gradients on F and G.
         """
 
@@ -153,7 +153,7 @@ class ReversibleBlock(nn.Module):
             g_Y_1.backward(dY_2, retain_graph=True)
 
         # activation recomputation is by design and not part of
-        # the computation graph in forward pass. Hence we do not
+        # the computation graph in forward pass. Hence they do not
         # need to record it in the computation graph.
         with torch.no_grad():
             # recomputing X_2 from the rev equation

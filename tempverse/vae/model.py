@@ -30,7 +30,7 @@ class VAE(nn.Module):
         assert len(self.down_sample) == len(self.down_channels) - 1
         assert len(self.attns) == len(self.down_channels) - 1
 
-        # Wherever we use downsampling in encoder correspondingly use
+        # Wherever they use downsampling in encoder correspondingly use
         # upsampling in decoder
         self.up_sample = list(reversed(self.down_sample))
 
@@ -58,7 +58,7 @@ class VAE(nn.Module):
         self.encoder_norm_out = nn.GroupNorm(self.norm_channels, self.down_channels[-1])
         self.encoder_conv_out = nn.Conv2d(self.down_channels[-1], 2 * self.z_channels, kernel_size=3, padding=1)
 
-        # Latent Dimension is 2*Latent because we are predicting mean & variance
+        # Latent Dimension is 2*Latent because they are predicting mean & variance
         self.pre_quant_conv = nn.Conv2d(2 * self.z_channels, 2 * self.z_channels, kernel_size=1)
         ####################################################
 
