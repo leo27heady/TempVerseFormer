@@ -19,7 +19,7 @@ class BaseLogger(logging.Logger):
         # Add handlers (e.g., ConsoleHandler, FileHandler, etc.)
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
-            fmt="%(asctime)s --- %(levelname)s --- %(name)s --- %(message)s",
+            fmt="%(asctime)s --- %(levelname)s --- %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         handler.setFormatter(formatter)
