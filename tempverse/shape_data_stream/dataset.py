@@ -84,6 +84,13 @@ class ShapeDataset(IterableDataset):
                 selected_temporal_patterns = random.choices(selected_temporal_patterns, k=random.randint(0, len(selected_temporal_patterns)))
                 
                 acceleration, deceleration, oscillation_period, interruption_period = 0.0, 0.0, 0.0, 0.0
+                step_swap = 0.0
+                
+                if TemporalPatterns.OSCILLATION in selected_temporal_patterns:
+                    oscillation_period = random.choice(list(range(self.config.oscillation_period.min, self.config.oscillation_period.max + 1)))
+                elif TemporalPatterns.INTERRUPTION in selected_temporal_patterns:
+                    interruption_period = random.choice(list(range(self.config.interruption_period.min, self.config.interruption_period.max + 1)))
+                
                 if TemporalPatterns.ACCELERATION in selected_temporal_patterns:
                     step /= 1.5
                     acceleration = 1.0 + random.randint(self.scale(self.config.acceleration_hundredth.min / 2), self.scale(self.config.acceleration_hundredth.max / 2)) / (self.scale_factor * 100)
@@ -91,13 +98,6 @@ class ShapeDataset(IterableDataset):
                     step *= 1.5
                     deceleration = 1.0 + random.randint(self.scale(self.config.acceleration_hundredth.min * 2), self.scale(self.config.acceleration_hundredth.max * 2)) / (self.scale_factor * 100)
                     deceleration = 1 / deceleration
-                
-                if TemporalPatterns.OSCILLATION in selected_temporal_patterns:
-                    oscillation_period = random.choice(list(range(self.config.oscillation_period.min, self.config.oscillation_period.max + 1)))
-                elif TemporalPatterns.INTERRUPTION in selected_temporal_patterns:
-                    interruption_period = random.choice(list(range(self.config.interruption_period.min, self.config.interruption_period.max + 1)))
-                
-                step_swap = 0.0
 
                 transformed_images, angles = [], []
                 for i in range(self.config.context_size + current_batch_time):
@@ -121,19 +121,6 @@ class ShapeDataset(IterableDataset):
                         step *= acceleration
                     elif TemporalPatterns.DECELERATION in selected_temporal_patterns:
                         step *= deceleration
-
-                    # Single pattern at a time
-                    # match temporal_pattern:
-                    #     case TemporalPatterns.ACCELERATION:
-                    #         step *= acceleration
-                    #     case TemporalPatterns.DECELERATION:
-                    #         step *= deceleration
-                    #     case TemporalPatterns.OSCILLATION:
-                    #         if (i + 1) % oscillation_period == 0:
-                    #             step *= -1.0
-                    #     case TemporalPatterns.INTERRUPTION:
-                    #         if (i + 1) % interruption_period == 0:
-                    #             step, step_swap = step_swap, step
 
                 batch_images.append(torch.stack(transformed_images))
                 batch_angles.append(torch.Tensor(angles))

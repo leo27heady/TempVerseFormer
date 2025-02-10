@@ -12,7 +12,7 @@ from .vae import VAE
 from .rev_transformer import RevFormer
 from .vanilla_transformer import VanillaTransformer
 from .lstm import Seq2SeqLSTM
-from .config import TrainingConfig
+from .config import TrainingConfig, TrainTypes
 from .utils import BaseLogger
 
 
@@ -38,25 +38,37 @@ class Trainer():
     ):
 
         self.logger = BaseLogger(__file__)
-
         self.training_config = training_config
-        self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM = model
+
+        self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM | None = model
         self.vae_model: VAE = vae_model
-        self.optimizer: torch.optim.Optimizer = torch.optim.Adam(
-            [
-                {'params': self.model.parameters(), 'lr': self.training_config.lr},
-                {'params': self.vae_model.parameters(), 'lr': self.training_config.lr}
-            ],
-            weight_decay=self.training_config.weight_decay
-        )
-        
+
+        match self.training_config.train_type:
+            case TrainTypes.DEFAULT:
+                params = [
+                    {'params': self.model.parameters(), 'lr': self.training_config.lr},
+                    {'params': self.vae_model.parameters(), 'lr': self.training_config.lr}
+                ]
+            case TrainTypes.VAE_ONLY:
+                params = [
+                    {'params': self.vae_model.parameters(), 'lr': self.training_config.lr}
+                ]
+            case TrainTypes.TEMP_ONLY:
+                params = [
+                   {'params': self.model.parameters(), 'lr': self.training_config.lr},
+                ]
+            case _:
+                raise ValueError(f"Unknown Training Type: {self.training_config.train_type}")
+
+        self.optimizer: torch.optim.Optimizer = torch.optim.Adam(params, weight_decay=self.training_config.weight_decay)
         self.device = device
         self.wandb_runner = wandb_runner
         self.recon_criterion = nn.MSELoss()
         self.save_dir = save_dir
         self.verbose = verbose
 
-        self.lpips_loss_fn = LPIPS(net='alex').to(device=device).requires_grad_(False)
+        if self.training_config.train_type != TrainTypes.TEMP_ONLY:
+            self.lpips_loss_fn = LPIPS(net='alex').to(device=device).requires_grad_(False)
 
         self.kl_weight = 5e-6
         self.perceptual_weight = 1.0
@@ -127,58 +139,42 @@ class Trainer():
             images = images.squeeze(dim=0).to(device=self.device)
             angles = angles.squeeze(dim=0).to(device=self.device)
             temp_patterns = temp_patterns.squeeze(dim=0).to(device=self.device)
-
-            batch_size, images_count, c, w, h = images.shape
-
+            
             time_to_pred = len(batch_t)
+            batch_size, images_count, c, w, h = images.shape
             context_size = images_count - time_to_pred
-            
-            self.optimizer.zero_grad()
-            
             input_images = images[:, :context_size]
             expected_images = images[:, -context_size:]
             # expected_images = images[:, -time_to_pred:]
+
+            self.optimizer.zero_grad()
             
-            input_images = rearrange(input_images, "b t c w h -> (b t) c w h")
-            z, encoder_output = self.vae_model.encode(input_images)
+            # Run selected training type
+            match self.training_config.train_type:
+                case TrainTypes.DEFAULT:
+                    loss, decoder_output = self.train_default(input_images, expected_images, time_to_pred)
+                case TrainTypes.VAE_ONLY:
+                    loss, decoder_output = self.train_vae_only(images, expected_images)
+                case TrainTypes.TEMP_ONLY:
+                    loss, temp_output = self.train_temp_only(images, context_size, time_to_pred)
             
-            z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-            encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-            y_pred = self.model(z, time_to_pred)
-
-            decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
-            decoder_output = self.vae_model.decode(decoder_input)
-            decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-            # decoder_output = decoder_output[:, -time_to_pred:]
-
-            recon_loss = self.recon_criterion(decoder_output, expected_images)
-            self.buffer['recon_losses'].append(recon_loss.item())
-
-            mean, logvar = torch.chunk(encoder_output, 2, dim=2)
-            kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
-            self.buffer['kl_losses'].append(kl_loss.item())
-
-            g_loss = recon_loss + (self.kl_weight * kl_loss)
-
-            lpips_loss = torch.mean(self.lpips_loss_fn(
-                rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
-                rearrange(expected_images, "b t c w h -> (b t) c w h")
-            ))
-            self.buffer['perceptual_losses'].append(lpips_loss.item())
+            self.buffer['loss'].append(loss.item())
             
-            g_loss += self.perceptual_weight * lpips_loss
-            self.buffer['loss'].append(g_loss.item())
-            
-            g_loss.backward()
+            loss.backward()
             self.optimizer.step()
 
-            pretty_name = f"step{step}-loss{str(g_loss.item()).replace(".", "_")}"
+            pretty_name = f"step{step}-loss{str(loss.item()).replace(".", "_")}"
             
             if self.verbose and step % self.training_config.print_freq == 0:
                 self.logger.info("\nIteration {}".format(step))
-                self.logger.info("Loss: {:.3f}".format(g_loss.item()))
+                self.logger.info("Loss: {:.3f}".format(loss.item()))
 
             if step % self.training_config.save_image_samples_freq == 0:
+                if self.training_config.train_type == TrainTypes.TEMP_ONLY:
+                    decoder_input = rearrange(temp_output, "b t c w h -> (b t) c w h")
+                    decoder_output = self.vae_model.decode(decoder_input)
+                    decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
+
                 with torch.no_grad():
                     self.sample_and_save(
                         rearrange(decoder_output, "b t c w h -> t b c w h"), 
@@ -191,14 +187,21 @@ class Trainer():
                     )
 
             if self.wandb_runner is not None:
-                self.wandb_runner.log({
+                params = {
                     "step": step,
-                    "time_to_pred": time_to_pred, 
-                    "loss": self.buffer['loss'][-1], 
-                    "recon_losses": self.buffer['recon_losses'][-1], 
-                    "perceptual_losses": self.buffer['perceptual_losses'][-1], 
-                    "kl_losses": self.buffer['kl_losses'][-1], 
-                })
+                    "loss": self.buffer['loss'][-1]
+                }
+                
+                if self.buffer['recon_losses']:
+                    params["recon_losses"] = self.buffer['recon_losses'][-1]
+                
+                if self.buffer['perceptual_losses']:
+                    params["perceptual_losses"] = self.buffer['perceptual_losses'][-1]
+                
+                if self.buffer['kl_losses']:
+                    params["kl_losses"] = self.buffer['kl_losses'][-1]
+                
+                self.wandb_runner.log(params)
 
             # At every record_freq iteration, record mean loss and so on and clear buffer
             if step % self.training_config.record_freq == 0:
@@ -217,9 +220,98 @@ class Trainer():
             if step % self.training_config.save_weights_freq == 0:
                 save_model_path = Path(self.save_dir) / Path(f"inter_models/{pretty_name}")
                 save_model_path.mkdir(parents=True, exist_ok=True)
+                
+                match self.training_config.train_type:
+                    case TrainTypes.DEFAULT:
+                        torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
+                        torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
+                    case TrainTypes.VAE_ONLY:
+                        torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
+                    case TrainTypes.TEMP_ONLY:
+                        torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
 
-                torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
-                torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
-            
             if step == self.training_config.steps:
                 break
+    
+    def train_default(self, input_images, expected_images, time_to_pred):
+
+        batch_size, context_size, c, w, h = input_images.shape
+
+        input_images = rearrange(input_images, "b t c w h -> (b t) c w h")
+        z, encoder_output = self.vae_model.encode(input_images)
+        
+        z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
+        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
+        y_pred = self.model(z, time_to_pred)
+
+        decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
+        decoder_output = self.vae_model.decode(decoder_input)
+        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
+        # decoder_output = decoder_output[:, -time_to_pred:]
+
+        recon_loss = self.recon_criterion(decoder_output, expected_images)
+        self.buffer['recon_losses'].append(recon_loss.item())
+
+        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
+        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
+        self.buffer['kl_losses'].append(kl_loss.item())
+
+        loss = recon_loss + (self.kl_weight * kl_loss)
+
+        lpips_loss = torch.mean(self.lpips_loss_fn(
+            rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
+            rearrange(expected_images, "b t c w h -> (b t) c w h")
+        ))
+        self.buffer['perceptual_losses'].append(lpips_loss.item())
+        
+        loss += self.perceptual_weight * lpips_loss
+
+        return loss, decoder_output
+    
+    def train_vae_only(self, images, expected_images):
+
+        batch_size, images_count, c, w, h = images.shape
+
+        images = rearrange(images, "b t c w h -> (b t) c w h")
+        z, encoder_output = self.vae_model.encode(images)
+        
+        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
+
+        decoder_output = self.vae_model.decode(z)
+        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
+
+        recon_loss = self.recon_criterion(decoder_output, expected_images)
+        self.buffer['recon_losses'].append(recon_loss.item())
+
+        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
+        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
+        self.buffer['kl_losses'].append(kl_loss.item())
+
+        loss = recon_loss + (self.kl_weight * kl_loss)
+
+        lpips_loss = torch.mean(self.lpips_loss_fn(
+            rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
+            rearrange(expected_images, "b t c w h -> (b t) c w h")
+        ))
+        self.buffer['perceptual_losses'].append(lpips_loss.item())
+        
+        loss += self.perceptual_weight * lpips_loss
+
+        return loss, decoder_output
+
+    def train_temp_only(self, images, context_size, time_to_pred):
+
+        batch_size, images_count, c, w, h = images.shape
+
+        images = rearrange(images, "b t c w h -> (b t) c w h")
+        with torch.no_grad():
+            z, encoder_output = self.vae_model.encode(images)
+        
+        z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
+        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
+        y_pred = self.model(z[:, :context_size], time_to_pred)
+
+        loss = self.recon_criterion(y_pred, z[:, -context_size:])
+        self.buffer['recon_losses'].append(loss.item())
+
+        return loss, y_pred

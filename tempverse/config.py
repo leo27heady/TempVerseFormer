@@ -17,11 +17,19 @@ class TemporalPatterns(Enum):
     INTERRUPTION: str = "INTERRUPTION"
 
 
+class TrainTypes(Enum):
+    DEFAULT: str = "DEFAULT"
+    VAE_ONLY: str = "VAE_ONLY"
+    TEMP_ONLY: str = "TEMP_ONLY"
+
+
 class GeneralConfig(BaseModel):
     experiment_type: ExperimentTypes
     project: str
     name: str
     log_to_wandb: bool
+    pretrained_temp_model_path: str | None = None
+    pretrained_vae_model_path: str | None = None
 
 
 class IntervalModel(BaseModel):
@@ -46,7 +54,6 @@ class DataConfig(BaseModel):
     # TODO: Add validators like assert batch_time > context_size
 
 class VaeConfig(BaseModel):
-    pretrained_vae_path: str | None = None
     z_channels: int = 256
     down_channels: list[int] = [8, 16, 32, 64, 128, 256, 384]
     mid_channels: list[int] = [384]
@@ -82,6 +89,7 @@ class LSTM_Config(BaseModel):
 
 
 class TrainingConfig(BaseModel):
+    train_type: TrainTypes = TrainTypes.DEFAULT
     num_reps: int = 1
     steps: int = 50_000
     lr: float = 5e-6
@@ -110,6 +118,38 @@ if __name__ == "__main__":
     import yaml
 
     
+    ##############################
+    ####    GROUP VAE ONLY    ####
+    ##############################
+    
+    vae_only_group = ConfigGroup(
+        group=[
+            Config(
+                general=GeneralConfig(
+                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
+                    project="temp-verse-former-vae",
+                    name="temp-verse-former-vae",
+                    log_to_wandb=True
+                ),
+                data=DataConfig(
+                    temporal_patterns=[],
+                    time_to_pred=IntervalModel(min=0, max=0),
+                    batch_size=64
+                ),
+                training=TrainingConfig(
+                    train_type=TrainTypes.VAE_ONLY
+                )
+            )
+        ]
+    )
+
+    with open("configs/vae-only.yaml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            vae_only_group.model_dump(mode="json"),
+            f, allow_unicode=True, default_flow_style=None, width=float("inf")
+        )
+
+    
     #####################################
     ####    GROUP TempVerseFormer    ####
     #####################################
@@ -127,50 +167,6 @@ if __name__ == "__main__":
                     temporal_patterns=[]
                 )
             ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-            #         project="temp-verse-former",
-            #         name="temp-verse-former--acceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.ACCELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-            #         project="temp-verse-former",
-            #         name="temp-verse-former--deceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.DECELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-            #         project="temp-verse-former",
-            #         name="temp-verse-former--oscillation",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.OSCILLATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-            #         project="temp-verse-former",
-            #         name="temp-verse-former--interruption",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.INTERRUPTION]
-            #     )
-            # ),
             Config(
                 general=GeneralConfig(
                     experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
@@ -209,50 +205,6 @@ if __name__ == "__main__":
                     temporal_patterns=[]
                 )
             ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-            #         project="temp-verse-former-vanilla-bp",
-            #         name="temp-verse-former-vanilla-bp--acceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.ACCELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-            #         project="temp-verse-former-vanilla-bp",
-            #         name="temp-verse-former-vanilla-bp--deceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.DECELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-            #         project="temp-verse-former-vanilla-bp",
-            #         name="temp-verse-former-vanilla-bp--oscillation",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.OSCILLATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-            #         project="temp-verse-former-vanilla-bp",
-            #         name="temp-verse-former-vanilla-bp--interruption",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.INTERRUPTION]
-            #     )
-            # ),
             Config(
                 general=GeneralConfig(
                     experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
@@ -291,50 +243,6 @@ if __name__ == "__main__":
                     temporal_patterns=[]
                 )
             ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-            #         project="temp-verse-vanilla-transformer",
-            #         name="temp-verse-vanilla-transformer--acceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.ACCELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-            #         project="temp-verse-vanilla-transformer",
-            #         name="temp-verse-vanilla-transformer--deceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.DECELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-            #         project="temp-verse-vanilla-transformer",
-            #         name="temp-verse-vanilla-transformer--oscillation",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.OSCILLATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-            #         project="temp-verse-vanilla-transformer",
-            #         name="temp-verse-vanilla-transformer--interruption",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.INTERRUPTION]
-            #     )
-            # ),
             Config(
                 general=GeneralConfig(
                     experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
@@ -373,50 +281,6 @@ if __name__ == "__main__":
                     temporal_patterns=[]
                 )
             ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.LSTM,
-            #         project="temp-verse-lstm",
-            #         name="temp-verse-lstm--acceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.ACCELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.LSTM,
-            #         project="temp-verse-lstm",
-            #         name="temp-verse-lstm--deceleration",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.DECELERATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.LSTM,
-            #         project="temp-verse-lstm",
-            #         name="temp-verse-lstm--oscillation",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.OSCILLATION]
-            #     )
-            # ),
-            # Config(
-            #     general=GeneralConfig(
-            #         experiment_type=ExperimentTypes.LSTM,
-            #         project="temp-verse-lstm",
-            #         name="temp-verse-lstm--interruption",
-            #         log_to_wandb=True
-            #     ),
-            #     data=DataConfig(
-            #         temporal_patterns=[TemporalPatterns.INTERRUPTION]
-            #     )
-            # ),
             Config(
                 general=GeneralConfig(
                     experiment_type=ExperimentTypes.LSTM,

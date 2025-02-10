@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 from dotenv import load_dotenv
 
-from tempverse.config import Config, ConfigGroup, ExperimentTypes
+from tempverse.config import Config, ConfigGroup, ExperimentTypes, TrainTypes
 from tempverse.shape_data_stream import ShapeDataset
 from tempverse.vae import VAE
 from tempverse.rev_transformer import RevFormer
@@ -45,31 +45,32 @@ if __name__ == "__main__":
 
             logger.info("{}/{} rep".format(j, config.training.num_reps))
 
-            match config.general.experiment_type:
-                case ExperimentTypes.TEMP_VERSE_FORMER:
-                    model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
-                    logger.info("RevFormer model with efficient backward propagation successfully initialized")
-                case ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP:
-                    model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=False)
-                    logger.info("RevFormer model with vanilla backward propagation successfully initialized")
-                case ExperimentTypes.VANILLA_TRANSFORMER:
-                    model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
-                    logger.info("VanillaTransformer model successfully initialized")
-                case ExperimentTypes.LSTM:
-                    model = Seq2SeqLSTM(config.lstm)
-                    logger.info("Seq2SeqLSTM model successfully initialized")
-                case _:
-                    error = f"Unknown Experiment Type: {config.general.experiment_type}"
-                    logger.error(error)
-                    raise ValueError(error)
-            model.to(device)
+            model = None
+            if config.training.train_type != TrainTypes.VAE_ONLY:
+                match config.general.experiment_type:
+                    case ExperimentTypes.TEMP_VERSE_FORMER:
+                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
+                        logger.info("RevFormer model with efficient backward propagation successfully initialized")
+                    case ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP:
+                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=False)
+                        logger.info("RevFormer model with vanilla backward propagation successfully initialized")
+                    case ExperimentTypes.VANILLA_TRANSFORMER:
+                        model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
+                        logger.info("VanillaTransformer model successfully initialized")
+                    case ExperimentTypes.LSTM:
+                        model = Seq2SeqLSTM(config.lstm)
+                        logger.info("Seq2SeqLSTM model successfully initialized")
+                    case _:
+                        error = f"Unknown Experiment Type: {config.general.experiment_type}"
+                        logger.error(error)
+                        raise ValueError(error)
+                model.to(device)
 
             vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)
-            if config.vae.pretrained_vae_path:
-                vae_model.eval()
-                vae_model.requires_grad_(False)
-                vae_model.load_state_dict(torch.load(config.vae.pretrained_vae_path, map_location=device))
-            
+            if config.training.train_type == TrainTypes.TEMP_ONLY:
+                vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
+                vae_model = vae_model.eval().requires_grad_(False)
+
             wandb_runner = None if not config.general.log_to_wandb else wandb.init(
                 # set the wandb project where this run will be logged
                 project=config.general.project,
