@@ -15,10 +15,11 @@ from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
 from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
-from tempverse.utils import create_timestamp
+from tempverse.utils import BaseLogger, create_timestamp
 
 
 if __name__ == "__main__":
+    logger = BaseLogger(__file__)
     load_dotenv()
 
     parser = argparse.ArgumentParser("Temporal Modeling on Simple Shapes Rotation")
@@ -31,8 +32,8 @@ if __name__ == "__main__":
     
     for i, config in enumerate(config_group.group, start=1):
 
-        print(f"Processing config {i}/{len(config_group.group)}")
-        print(f"Task: {config.general.experiment_type.value}, Project: {config.general.project}, Name: {config.general.name}")
+        logger.info(f"Processing config {i}/{len(config_group.group)}")
+        logger.info(f"Task: {config.general.experiment_type.value}, Project: {config.general.project}, Name: {config.general.name}")
 
         device = torch.device("cuda")
 
@@ -42,19 +43,25 @@ if __name__ == "__main__":
         for j in range(1, config.training.num_reps + 1):
             directory = f"results/{config.general.project}/{run_timestamp}/{config.general.name}/rep_{j}"
 
-            print("{}/{} rep".format(j, config.training.num_reps))
+            logger.info("{}/{} rep".format(j, config.training.num_reps))
 
             match config.general.experiment_type:
                 case ExperimentTypes.TEMP_VERSE_FORMER:
                     model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
+                    logger.info("RevFormer model with efficient backward propagation successfully initialized")
                 case ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP:
                     model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=False)
+                    logger.info("RevFormer model with vanilla backward propagation successfully initialized")
                 case ExperimentTypes.VANILLA_TRANSFORMER:
                     model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
+                    logger.info("VanillaTransformer model successfully initialized")
                 case ExperimentTypes.LSTM:
                     model = Seq2SeqLSTM(config.lstm)
+                    logger.info("Seq2SeqLSTM model successfully initialized")
                 case _:
-                    raise ValueError(f"Unknown Experiment Type: {config.general.experiment_type}")
+                    error = f"Unknown Experiment Type: {config.general.experiment_type}"
+                    logger.error(error)
+                    raise ValueError(error)
             model.to(device)
 
             vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)

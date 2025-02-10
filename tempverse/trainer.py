@@ -13,6 +13,7 @@ from .rev_transformer import RevFormer
 from .vanilla_transformer import VanillaTransformer
 from .lstm import Seq2SeqLSTM
 from .config import TrainingConfig
+from .utils import BaseLogger
 
 
 class Trainer():
@@ -35,6 +36,8 @@ class Trainer():
         self, model, vae_model, device, wandb_runner, training_config: TrainingConfig,
         verbose=True, save_dir=None
     ):
+
+        self.logger = BaseLogger(__file__)
 
         self.training_config = training_config
         self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM = model
@@ -108,7 +111,7 @@ class Trainer():
                 save_path = series_dir / f"t{t:02d}.png"
                 save_image(concat_image[t, i], save_path)
 
-        print(f"Saved {num_samples} image series in '{save_dir}'.")
+        self.logger.info(f"Saved {num_samples} image series in '{save_dir}'.")
 
 
     def train(self, data_loader):
@@ -172,8 +175,8 @@ class Trainer():
             pretty_name = f"step{step}-loss{str(g_loss.item()).replace(".", "_")}"
             
             if self.verbose and step % self.training_config.print_freq == 0:
-                print("\nIteration {}".format(step))
-                print("Loss: {:.3f}".format(g_loss.item()))
+                self.logger.info("\nIteration {}".format(step))
+                self.logger.info("Loss: {:.3f}".format(g_loss.item()))
 
             if step % self.training_config.save_image_samples_freq == 0:
                 with torch.no_grad():
