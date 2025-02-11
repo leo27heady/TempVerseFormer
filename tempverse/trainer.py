@@ -74,10 +74,10 @@ class Trainer():
         self.perceptual_weight = 1.0
 
         self.histories = {
-            'steps': [], 'loss_history': [], 'recon_losses_history': [], 'perceptual_losses_history': [], 'kl_losses_history': []
+            'steps': [], 'loss_history': [], 'recon_losses_history': [], 'vae_recon_losses_history': [], 'perceptual_losses_history': [], 'kl_losses_history': []
         }
         self.buffer = {
-            'loss': [], 'recon_losses': [], 'perceptual_losses': [], 'kl_losses': []
+            'loss': [], 'recon_losses': [], 'vae_recon_losses': [], 'perceptual_losses': [], 'kl_losses': []
         }
 
 
@@ -166,7 +166,7 @@ class Trainer():
             pretty_name = f"step{step}-loss{str(loss.item()).replace(".", "_")}"
             
             if self.verbose and step % self.training_config.print_freq == 0:
-                self.logger.info("\nIteration {}".format(step))
+                self.logger.info("Iteration {}".format(step))
                 self.logger.info("Loss: {:.3f}".format(loss.item()))
 
             if step % self.training_config.save_image_samples_freq == 0:
@@ -189,11 +189,15 @@ class Trainer():
             if self.wandb_runner is not None:
                 params = {
                     "step": step,
+                    "time_to_pred": time_to_pred,
                     "loss": self.buffer['loss'][-1]
                 }
                 
                 if self.buffer['recon_losses']:
                     params["recon_losses"] = self.buffer['recon_losses'][-1]
+                
+                if self.buffer['vae_recon_losses']:
+                    params["vae_recon_losses"] = self.buffer['vae_recon_losses'][-1]
                 
                 if self.buffer['perceptual_losses']:
                     params["perceptual_losses"] = self.buffer['perceptual_losses'][-1]
@@ -208,12 +212,14 @@ class Trainer():
                 self.histories['steps'].append(step)
                 self.histories['loss_history'].append(np.mean(self.buffer['loss']))
                 self.histories['recon_losses_history'].append(np.mean(self.buffer['recon_losses']))
+                self.histories['vae_recon_losses_history'].append(np.mean(self.buffer['vae_recon_losses']))
                 self.histories['perceptual_losses_history'].append(np.mean(self.buffer['perceptual_losses']))
                 self.histories['kl_losses_history'].append(np.mean(self.buffer['kl_losses']))
 
                 # Clear buffer
                 self.buffer['loss'] = []
                 self.buffer['recon_losses'] = []
+                self.buffer['vae_recon_losses'] = []
                 self.buffer['perceptual_losses'] = []
                 self.buffer['kl_losses'] = []
             
@@ -237,11 +243,13 @@ class Trainer():
 
         batch_size, context_size, c, w, h = input_images.shape
 
-        input_images = rearrange(input_images, "b t c w h -> (b t) c w h")
-        z, encoder_output = self.vae_model.encode(input_images)
+        z, encoder_output = self.vae_model.encode(rearrange(input_images, "b t c w h -> (b t) c w h"))
+        t0_decoder_output = self.vae_model.decode(z)
+        
+        t0_decoder_output = rearrange(t0_decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
+        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         
         z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         y_pred = self.model(z, time_to_pred)
 
         decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
@@ -252,11 +260,16 @@ class Trainer():
         recon_loss = self.recon_criterion(decoder_output, expected_images)
         self.buffer['recon_losses'].append(recon_loss.item())
 
+        vae_recon_loss = self.recon_criterion(t0_decoder_output, input_images)
+        self.buffer['vae_recon_losses'].append(vae_recon_loss.item())
+
+        loss = recon_loss + vae_recon_loss
+
         mean, logvar = torch.chunk(encoder_output, 2, dim=2)
         kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
         self.buffer['kl_losses'].append(kl_loss.item())
 
-        loss = recon_loss + (self.kl_weight * kl_loss)
+        loss += self.kl_weight * kl_loss
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
             rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
@@ -281,7 +294,7 @@ class Trainer():
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
 
         recon_loss = self.recon_criterion(decoder_output, expected_images)
-        self.buffer['recon_losses'].append(recon_loss.item())
+        self.buffer['vae_recon_losses'].append(recon_loss.item())
 
         mean, logvar = torch.chunk(encoder_output, 2, dim=2)
         kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))

@@ -10,15 +10,28 @@ from ..config import DataConfig, TemporalPatterns
 
 
 class ShapeDataset(IterableDataset):
-    def __init__(self, device, config: DataConfig):
+    def __init__(self, device, config: DataConfig, steps: int):
         self.scale_factor = 1000
         self.device = device
         self.config = config
+        self.current_steps = 0
+        self.total_steps = steps
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.ConvertImageDtype(torch.float32),
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
+        
+        if self.config.gradual_complexity and self.config.time_to_pred.max != 0:
+            assert sum(self.config.gradual_complexity) == 1.0
+            assert len(self.config.gradual_complexity) == self.config.time_to_pred.max - self.config.time_to_pred.min + 1
+            
+            self.increase_complexity_step_iter = iter(self.config.gradual_complexity)
+            self.increase_complexity_steps = next(self.increase_complexity_step_iter) * self.total_steps
+            self.start_max_batch_time = self.config.time_to_pred.min
+        else:
+            self.increase_complexity_steps = None
+            self.start_max_batch_time = self.config.time_to_pred.max
     
     def scale(self, var: int | float) -> int:
         return int(var * self.scale_factor)
@@ -38,7 +51,11 @@ class ShapeDataset(IterableDataset):
         )
         
         while True:
-            current_batch_time = random.randint(self.config.time_to_pred.min, self.config.time_to_pred.max)
+
+            if self.increase_complexity_steps and self.current_steps >= self.increase_complexity_steps:
+                self.start_max_batch_time += 1
+                self.increase_complexity_steps = self.current_steps + next(self.increase_complexity_step_iter, 0) * self.total_steps
+            current_batch_time = random.randint(self.config.time_to_pred.min, self.start_max_batch_time)
             
             batch_images,batch_angles, batch_temp_patterns = [], [], []
             for batch in range(self.config.batch_size):
@@ -125,6 +142,8 @@ class ShapeDataset(IterableDataset):
                 batch_images.append(torch.stack(transformed_images))
                 batch_angles.append(torch.Tensor(angles))
                 batch_temp_patterns.append(torch.Tensor([acceleration, deceleration, oscillation_period, interruption_period]))
+            
+            self.current_steps += 1
 
             yield (
                 torch.arange(start=1, end=current_batch_time + 1).to(device=self.device), 

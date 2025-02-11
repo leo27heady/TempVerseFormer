@@ -1,15 +1,16 @@
 group:
 - data:
     acceleration_hundredth: {max: 6, min: 3}
-    angle: {max: 30, min: 5}
+    angle: {max: 20, min: 5}
     batch_size: 16
     context_size: 12
+    gradual_complexity: [0.2, 0.3, 0.1, 0.1, 0.3]
     im_channels: 3
     interruption_period: {max: 6, min: 1}
     oscillation_period: {max: 6, min: 1}
     render_window_size: 64
     temporal_patterns: []
-    time_to_pred: {max: 6, min: 1}
+    time_to_pred: {max: 5, min: 1}
   general: {experiment_type: LSTM, log_to_wandb: true, name: temp-verse-lstm, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: temp-verse-lstm}
   lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
   rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
@@ -28,15 +29,16 @@ group:
   vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
 - data:
     acceleration_hundredth: {max: 6, min: 3}
-    angle: {max: 30, min: 5}
+    angle: {max: 20, min: 5}
     batch_size: 16
     context_size: 12
+    gradual_complexity: [0.2, 0.3, 0.1, 0.1, 0.3]
     im_channels: 3
     interruption_period: {max: 6, min: 1}
     oscillation_period: {max: 6, min: 1}
     render_window_size: 64
     temporal_patterns: [ACCELERATION, DECELERATION, OSCILLATION, INTERRUPTION]
-    time_to_pred: {max: 6, min: 1}
+    time_to_pred: {max: 5, min: 1}
   general: {experiment_type: LSTM, log_to_wandb: true, name: temp-verse-lstm--all-patterns, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: temp-verse-lstm}
   lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
   rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}

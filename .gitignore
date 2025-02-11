@@ -174,3 +174,4 @@ cython_debug/
 tempverse/shape_data_stream/simple_shape_rotation
 results
 wandb
+pretrained_vae

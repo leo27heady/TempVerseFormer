@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
         device = torch.device("cuda")
 
-        data_loader = DataLoader(ShapeDataset(device, config.data), batch_size=1)
+        data_loader = DataLoader(ShapeDataset(device, config.data, config.training.steps), batch_size=1)
 
         run_timestamp = create_timestamp()
         for j in range(1, config.training.num_reps + 1):
@@ -68,6 +68,7 @@ if __name__ == "__main__":
 
             vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)
             if config.training.train_type == TrainTypes.TEMP_ONLY:
+                assert config.general.pretrained_vae_model_path
                 vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
                 vae_model = vae_model.eval().requires_grad_(False)
 
