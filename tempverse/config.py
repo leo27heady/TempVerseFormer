@@ -23,11 +23,20 @@ class TrainTypes(Enum):
     TEMP_ONLY: str = "TEMP_ONLY"
 
 
+class ResumeTrain(BaseModel):
+    wandb_name: str
+    wandb_id: str
+    resume_folder: str
+    temp_model_path: str | None
+    vae_model_path: str | None
+    step: int
+
 class GeneralConfig(BaseModel):
     experiment_type: ExperimentTypes
     project: str
     name: str
     log_to_wandb: bool
+    resume_training: ResumeTrain | None = None
     pretrained_temp_model_path: str | None = None
     pretrained_vae_model_path: str | None = None
 

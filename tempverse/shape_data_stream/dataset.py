@@ -10,11 +10,11 @@ from ..config import DataConfig, TemporalPatterns
 
 
 class ShapeDataset(IterableDataset):
-    def __init__(self, device, config: DataConfig, steps: int):
+    def __init__(self, device, config: DataConfig, start_step: int, steps: int):
         self.scale_factor = 1000
         self.device = device
         self.config = config
-        self.current_steps = 0
+        self.current_steps = start_step
         self.total_steps = steps
         self.transform = transforms.Compose([
             transforms.ToTensor(),
@@ -27,8 +27,12 @@ class ShapeDataset(IterableDataset):
             assert len(self.config.gradual_complexity) == self.config.time_to_pred.max - self.config.time_to_pred.min + 1
             
             self.increase_complexity_step_iter = iter(self.config.gradual_complexity)
-            self.increase_complexity_steps = next(self.increase_complexity_step_iter) * self.total_steps
-            self.start_max_batch_time = self.config.time_to_pred.min
+            self.increase_complexity_steps = 0
+            self.start_max_batch_time = self.config.time_to_pred.min - 1
+            
+            while self.increase_complexity_steps <= self.current_steps:
+                self.increase_complexity_steps += next(self.increase_complexity_step_iter) * self.total_steps
+                self.start_max_batch_time += 1
         else:
             self.increase_complexity_steps = None
             self.start_max_batch_time = self.config.time_to_pred.max

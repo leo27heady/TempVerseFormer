@@ -126,7 +126,7 @@ class Trainer():
         self.logger.info(f"Saved {num_samples} image series in '{save_dir}'.")
 
 
-    def train(self, data_loader):
+    def train(self, start_step, data_loader):
         """Trains model
 
         Parameters
@@ -134,7 +134,7 @@ class Trainer():
         data_loader : torch.utils.data.DataLoader
         """
 
-        for step, (batch_t, images, angles, temp_patterns) in enumerate(data_loader):
+        for step, (batch_t, images, angles, temp_patterns) in enumerate(data_loader, start=start_step):
             batch_t = batch_t.squeeze(dim=0).to(device=self.device)
             images = images.squeeze(dim=0).to(device=self.device)
             angles = angles.squeeze(dim=0).to(device=self.device)

@@ -37,12 +37,8 @@ if __name__ == "__main__":
 
         device = torch.device("cuda")
 
-        data_loader = DataLoader(ShapeDataset(device, config.data, config.training.steps), batch_size=1)
-
         run_timestamp = create_timestamp()
         for j in range(1, config.training.num_reps + 1):
-            directory = f"results/{config.general.project}/{run_timestamp}/{config.general.name}/rep_{j}"
-
             logger.info("{}/{} rep".format(j, config.training.num_reps))
 
             model = None
@@ -71,14 +67,37 @@ if __name__ == "__main__":
                 assert config.general.pretrained_vae_model_path
                 vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
                 vae_model = vae_model.eval().requires_grad_(False)
+            
+            # If resume training, try to restore previous state and continue
+            if config.general.resume_training:
+                start_step = config.general.resume_training.step
+                directory = config.general.resume_training.resume_folder
+                wandb_name = config.general.resume_training.wandb_name
+                wandb_id = config.general.resume_training.wandb_id
+                
+                if config.general.resume_training.temp_model_path:
+                    model.load_state_dict(torch.load(config.general.resume_training.temp_model_path, map_location=device))
+                
+                if config.general.resume_training.vae_model_path:
+                    vae_model.load_state_dict(torch.load(config.general.resume_training.vae_model_path, map_location=device))
+            else:
+                start_step = 0
+                directory = f"results/{config.general.project}/{run_timestamp}/{config.general.name}/rep_{j}"
+                wandb_name = f"{config.general.name}--{run_timestamp}--{j}"
+                wandb_id = None
 
             wandb_runner = None if not config.general.log_to_wandb else wandb.init(
                 # set the wandb project where this run will be logged
                 project=config.general.project,
-                name=f"{config.general.name}--{run_timestamp}--{j}",
+                name=wandb_name,
+                id=wandb_id,
+                resume="must" if config.general.resume_training else "never",
                 # track hyperparameters and run metadata
                 config=config.model_dump(mode="json")
             )
+            
+            data_loader = DataLoader(ShapeDataset(device, config.data, start_step, config.training.steps), batch_size=1)
+            
             trainer = Trainer(
                 model, vae_model, device,
                 wandb_runner=wandb_runner,  
@@ -86,7 +105,7 @@ if __name__ == "__main__":
                 verbose=True,
                 save_dir=directory
             )
-            trainer.train(data_loader)
+            trainer.train(start_step, data_loader)
 
             with open(f"{directory}/histories.json", "w", encoding="utf-8") as f:
                 json.dump(trainer.histories, f, ensure_ascii=False, indent=4)
