@@ -244,9 +244,6 @@ class Trainer():
         batch_size, context_size, c, w, h = input_images.shape
 
         z, encoder_output = self.vae_model.encode(rearrange(input_images, "b t c w h -> (b t) c w h"))
-        t0_decoder_output = self.vae_model.decode(z)
-        
-        t0_decoder_output = rearrange(t0_decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         
         z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
@@ -260,16 +257,11 @@ class Trainer():
         recon_loss = self.recon_criterion(decoder_output, expected_images)
         self.buffer['recon_losses'].append(recon_loss.item())
 
-        vae_recon_loss = self.recon_criterion(t0_decoder_output, input_images)
-        self.buffer['vae_recon_losses'].append(vae_recon_loss.item())
-
-        loss = recon_loss + vae_recon_loss
-
         mean, logvar = torch.chunk(encoder_output, 2, dim=2)
         kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
         self.buffer['kl_losses'].append(kl_loss.item())
 
-        loss += self.kl_weight * kl_loss
+        loss = recon_loss + self.kl_weight * kl_loss
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
             rearrange(decoder_output, "b t c w h -> (b t) c w h"), 

@@ -4,7 +4,7 @@ from torch.autograd import Function as Function
 from einops import rearrange
 
 from .block import ReversibleBlock
-from .rev_back_prop import RevBackProp
+from ..rev_back_prop import RevBackProp
 from ..config import ReverseTransformerConfig
 
 

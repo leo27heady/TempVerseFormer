@@ -47,13 +47,13 @@ class IntervalModel(BaseModel):
 
 
 class DataConfig(BaseModel):
-    gradual_complexity: list[float] | None = [0.2, 0.3, 0.1, 0.1, 0.3]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
+    gradual_complexity: list[float] | None = [0.2, 0.3, 0.1, 0.1, 0.1, 0.2]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
     temporal_patterns: list[TemporalPatterns] = []
     render_window_size: int = 64
     im_channels: int = 3
     context_size: int = 12
     batch_size: int = 16
-    time_to_pred: IntervalModel = IntervalModel(min=1, max=5)
+    time_to_pred: IntervalModel = IntervalModel(min=0, max=5)
 
     # Greater than 0
     angle: IntervalModel = IntervalModel(min=5, max=20)
