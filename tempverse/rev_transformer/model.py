@@ -98,11 +98,12 @@ class RevFormer(nn.Module):
             executing_fn = RevBackProp.apply
 
         # This takes care of switching between vanilla backprop and rev backprop
-        x = executing_fn(
-            x,
-            t,
-            self.layers,
-        )
+        if t > 0:
+            x = executing_fn(
+                x,
+                t,
+                self.layers,
+            )
 
         # termination fusion
         x = self.term_fusion(self.norm(x))

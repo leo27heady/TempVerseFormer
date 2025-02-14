@@ -67,19 +67,22 @@ if __name__ == "__main__":
                 assert config.general.pretrained_vae_model_path
                 vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
                 vae_model = vae_model.eval().requires_grad_(False)
+
+                if config.general.pretrained_temp_model_path:
+                    model.load_state_dict(torch.load(config.general.pretrained_temp_model_path, map_location=device))
             
             # If resume training, try to restore previous state and continue
-            if config.general.resume_training:
-                start_step = config.general.resume_training.step
-                directory = config.general.resume_training.resume_folder
-                wandb_name = config.general.resume_training.wandb_name
-                wandb_id = config.general.resume_training.wandb_id
+            if config.resume_training:
+                start_step = config.resume_training.step
+                directory = config.resume_training.resume_folder
+                wandb_name = config.resume_training.wandb_name
+                wandb_id = config.resume_training.wandb_id
                 
-                if config.general.resume_training.temp_model_path:
-                    model.load_state_dict(torch.load(config.general.resume_training.temp_model_path, map_location=device))
+                if config.resume_training.temp_model_path:
+                    model.load_state_dict(torch.load(config.resume_training.temp_model_path, map_location=device))
                 
-                if config.general.resume_training.vae_model_path:
-                    vae_model.load_state_dict(torch.load(config.general.resume_training.vae_model_path, map_location=device))
+                if config.resume_training.vae_model_path:
+                    vae_model.load_state_dict(torch.load(config.resume_training.vae_model_path, map_location=device))
             else:
                 start_step = 0
                 directory = f"results/{config.general.project}/{run_timestamp}/{config.general.name}/rep_{j}"
@@ -91,7 +94,7 @@ if __name__ == "__main__":
                 project=config.general.project,
                 name=wandb_name,
                 id=wandb_id,
-                resume="must" if config.general.resume_training else "never",
+                resume="must" if config.resume_training else "never",
                 # track hyperparameters and run metadata
                 config=config.model_dump(mode="json")
             )

@@ -36,7 +36,6 @@ class GeneralConfig(BaseModel):
     project: str
     name: str
     log_to_wandb: bool
-    resume_training: ResumeTrain | None = None
     pretrained_temp_model_path: str | None = None
     pretrained_vae_model_path: str | None = None
 
@@ -47,13 +46,13 @@ class IntervalModel(BaseModel):
 
 
 class DataConfig(BaseModel):
-    gradual_complexity: list[float] | None = [0.2, 0.3, 0.1, 0.1, 0.1, 0.2]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
+    gradual_complexity: list[float] | None = [0.2, 0.3, 0.1, 0.1, 0.3]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
     temporal_patterns: list[TemporalPatterns] = []
     render_window_size: int = 64
     im_channels: int = 3
     context_size: int = 12
     batch_size: int = 16
-    time_to_pred: IntervalModel = IntervalModel(min=0, max=5)
+    time_to_pred: IntervalModel = IntervalModel(min=1, max=5)
 
     # Greater than 0
     angle: IntervalModel = IntervalModel(min=5, max=20)
@@ -101,7 +100,7 @@ class LSTM_Config(BaseModel):
 class TrainingConfig(BaseModel):
     train_type: TrainTypes = TrainTypes.DEFAULT
     num_reps: int = 1
-    steps: int = 50_000
+    steps: int = 30_000
     lr: float = 5e-6
     weight_decay: float = 0.0
     record_freq: int = 10
@@ -111,6 +110,7 @@ class TrainingConfig(BaseModel):
 
 
 class Config(BaseModel):
+    resume_training: ResumeTrain | None = None
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     data: DataConfig = Field(default_factory=DataConfig)
     vae: VaeConfig = Field(default_factory=VaeConfig)
