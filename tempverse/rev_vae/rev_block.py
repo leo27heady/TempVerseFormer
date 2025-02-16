@@ -12,6 +12,7 @@ class ReversibleMultiScaleBlock(nn.Module):
 
     def __init__(
         self,
+        type,
         dim,
         dim_out,
         num_heads,
@@ -32,6 +33,7 @@ class ReversibleMultiScaleBlock(nn.Module):
     ):
         """
         Args:
+            type (str): Either encoder or decoder.
             dim (int): Number of input channels.
             dim_out (int): Number of output channels.
             num_heads (int): Number of attention heads in the MViT block.
@@ -62,6 +64,7 @@ class ReversibleMultiScaleBlock(nn.Module):
             pool_kernel=qkv_pool_kernel,
             stride_q=stride_q,
             stride_kv=stride_kv,
+            pool_padding=[k // 2 for k in qkv_pool_kernel],
             residual_pooling=residual_pooling,
             window_size=window_size,
             use_rel_pos=use_rel_pos,

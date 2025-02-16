@@ -24,11 +24,13 @@ class MultiScaleAttention(nn.Module):
         pool_kernel=(3, 3),
         stride_q=1,
         stride_kv=1,
+        pool_padding=1,
         residual_pooling=True,
         window_size=0,
         use_rel_pos=False,
         rel_pos_zero_init=True,
         input_size=None,
+        transpose=False
     ):
         """
         Args:
@@ -54,9 +56,8 @@ class MultiScaleAttention(nn.Module):
         self.proj = nn.Linear(dim_out, dim_out)
 
         # qkv pooling
-        pool_padding = [k // 2 for k in pool_kernel]
         dim_conv = dim_out // num_heads
-        self.pool_q = nn.Conv2d(
+        self.pool_q = (nn.ConvTranspose2d if transpose else nn.Conv2d)(
             dim_conv,
             dim_conv,
             pool_kernel,
@@ -66,7 +67,7 @@ class MultiScaleAttention(nn.Module):
             bias=False,
         )
         self.norm_q = norm_layer(dim_conv)
-        self.pool_k = nn.Conv2d(
+        self.pool_k = (nn.ConvTranspose2d if transpose else nn.Conv2d)(
             dim_conv,
             dim_conv,
             pool_kernel,
@@ -76,7 +77,7 @@ class MultiScaleAttention(nn.Module):
             bias=False,
         )
         self.norm_k = norm_layer(dim_conv)
-        self.pool_v = nn.Conv2d(
+        self.pool_v = (nn.ConvTranspose2d if transpose else nn.Conv2d)(
             dim_conv,
             dim_conv,
             pool_kernel,
@@ -93,11 +94,13 @@ class MultiScaleAttention(nn.Module):
             self.kv_win_size = window_size // stride_kv
         self.residual_pooling = residual_pooling
 
-        self.use_rel_pos = use_rel_pos
+        
+        assert input_size[0] == input_size[1]
+        size = input_size[0]
+        self.use_rel_pos = use_rel_pos and size > 1
+        
         if self.use_rel_pos:
             # initialize relative positional embeddings
-            assert input_size[0] == input_size[1]
-            size = input_size[0]
             rel_dim = 2 * max(size // stride_q, size // stride_kv) - 1
             self.rel_pos_h = nn.Parameter(torch.zeros(rel_dim, head_dim))
             self.rel_pos_w = nn.Parameter(torch.zeros(rel_dim, head_dim))

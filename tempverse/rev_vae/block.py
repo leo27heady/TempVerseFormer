@@ -11,6 +11,7 @@ class MultiScaleBlock(nn.Module):
 
     def __init__(
         self,
+        type,
         dim,
         dim_out,
         num_heads,
@@ -19,7 +20,7 @@ class MultiScaleBlock(nn.Module):
         drop_path=0.0,
         norm_layer=nn.LayerNorm,
         act_layer=nn.GELU,
-        qkv_pool_kernel=(3, 3),
+        qkv_pool_kernel=(4, 4),
         stride_q=1,
         stride_kv=1,
         residual_pooling=True,
@@ -31,6 +32,7 @@ class MultiScaleBlock(nn.Module):
     ):
         """
         Args:
+            type (str): Either encoder or decoder.
             dim (int): Number of input channels.
             dim_out (int): Number of output channels.
             num_heads (int): Number of attention heads in the MViT block.
@@ -51,6 +53,7 @@ class MultiScaleBlock(nn.Module):
             enable_amp (bool): If True, enable mixed precision training.
         """
         super().__init__()
+
         self.norm1 = norm_layer(dim)
         self.attn = MultiScaleAttention(
             dim,
@@ -61,11 +64,13 @@ class MultiScaleBlock(nn.Module):
             pool_kernel=qkv_pool_kernel,
             stride_q=stride_q,
             stride_kv=stride_kv,
+            pool_padding=1,
             residual_pooling=residual_pooling,
             window_size=window_size,
             use_rel_pos=use_rel_pos,
             rel_pos_zero_init=rel_pos_zero_init,
             input_size=input_size,
+            transpose=(type == "decode")
         )
 
         self.drop_path = (
@@ -85,10 +90,10 @@ class MultiScaleBlock(nn.Module):
             self.proj = nn.Linear(dim, dim_out)
 
         if stride_q > 1:
-            kernel_skip = stride_q + 1
-            padding_skip = int(kernel_skip // 2)
-            self.pool_skip = nn.MaxPool2d(
-                kernel_skip, stride_q, padding_skip, ceil_mode=False
+            self.pool_skip = (nn.Conv2d if type == "encode" else nn.ConvTranspose2d)(
+                dim_out,
+                dim_out,
+                qkv_pool_kernel, stride_q, 1
             )
 
     def forward(self, x):
