@@ -1,0 +1,107 @@
+group:
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 16
+    context_size: 12
+    gradual_complexity: [0.2, 0.3, 0.1, 0.1, 0.3]
+    im_channels: 3
+    interruption_period: {max: 6, min: 1}
+    oscillation_period: {max: 6, min: 1}
+    render_window_size: 64
+    temporal_patterns: []
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: rev-transformer-only, pretrained_temp_model_path: null, pretrained_vae_model_path: pretrained_vae/vae-model.pt, project: rev-transformer-only, temp_model_type: REV_TRANSFORMER, vae_model_type: REV_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    decoder_halt_final_stage: true
+    decoder_stage_size: 4
+    decoder_stages: 6
+    drop_path_rate: 0.0
+    encoder_jump_first_stage: true
+    encoder_stage_size: 4
+    encoder_stages: 5
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads: 1
+    patch_embed_dim: 8
+    patch_kernel: [4, 4]
+    patch_padding: [1, 1]
+    patch_stride: [2, 2]
+    qkv_bias: true
+    qkv_pool_kernel: [4, 4]
+    rel_pos_zero_init: true
+    residual_pooling: true
+    use_abs_pos: false
+    use_rel_pos: true
+  training: {grad_calc_way: TEMP_VERSE_FORMER, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 25000, train_type: TEMP_ONLY, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 16
+    context_size: 12
+    gradual_complexity: [0.2, 0.3, 0.1, 0.1, 0.3]
+    im_channels: 3
+    interruption_period: {max: 6, min: 1}
+    oscillation_period: {max: 6, min: 1}
+    render_window_size: 64
+    temporal_patterns: [ACCELERATION, DECELERATION, OSCILLATION, INTERRUPTION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: rev-transformer--all-patterns, pretrained_temp_model_path: null, pretrained_vae_model_path: pretrained_vae/vae-model.pt, project: rev-transformer-only, temp_model_type: REV_TRANSFORMER, vae_model_type: REV_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    decoder_halt_final_stage: true
+    decoder_stage_size: 4
+    decoder_stages: 6
+    drop_path_rate: 0.0
+    encoder_jump_first_stage: true
+    encoder_stage_size: 4
+    encoder_stages: 5
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads: 1
+    patch_embed_dim: 8
+    patch_kernel: [4, 4]
+    patch_padding: [1, 1]
+    patch_stride: [2, 2]
+    qkv_bias: true
+    qkv_pool_kernel: [4, 4]
+    rel_pos_zero_init: true
+    residual_pooling: true
+    use_abs_pos: false
+    use_rel_pos: true
+  training: {grad_calc_way: TEMP_VERSE_FORMER, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 25000, train_type: TEMP_ONLY, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}

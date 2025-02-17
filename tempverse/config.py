@@ -3,11 +3,20 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
-class ExperimentTypes(Enum):
-    TEMP_VERSE_FORMER: str = "TEMP_VERSE_FORMER"
-    TEMP_VERSE_FORMER_VANILLA_BP: str = "TEMP_VERSE_FORMER_VANILLA_BP"
+class TempModelTypes(Enum):
+    REV_TRANSFORMER: str = "REV_TRANSFORMER"
     VANILLA_TRANSFORMER: str = "VANILLA_TRANSFORMER"
     LSTM: str = "LSTM"
+
+
+class VaeModelTypes(Enum):
+    VANILLA_VAE: str = "VANILLA_VAE"
+    REV_VAE: str = "REV_VAE"
+
+
+class GradientCalculationWays(Enum):
+    REVERSE_CALCULATION: str = "TEMP_VERSE_FORMER"
+    VANILLA_BP: str = "VANILLA_BP"
 
 
 class TemporalPatterns(Enum):
@@ -32,10 +41,12 @@ class ResumeTrain(BaseModel):
     step: int
 
 class GeneralConfig(BaseModel):
-    experiment_type: ExperimentTypes
     project: str
     name: str
     log_to_wandb: bool
+
+    temp_model_type: TempModelTypes | None
+    vae_model_type: VaeModelTypes | None
     pretrained_temp_model_path: str | None = None
     pretrained_vae_model_path: str | None = None
 
@@ -61,6 +72,31 @@ class DataConfig(BaseModel):
     interruption_period: IntervalModel = IntervalModel(min=1, max=6)
 
     # TODO: Add validators like assert batch_time > context_size
+
+class ReversibleVaeConfig(BaseModel):
+    encoder_stage_size: int = 4
+    encoder_stages: int = 5
+    encoder_jump_first_stage: bool = True
+    decoder_stage_size: int = 4
+    decoder_stages: int = 6
+    decoder_halt_final_stage: bool = True
+    patch_kernel: list[int] = [4, 4]
+    patch_stride: list[int] = [2, 2]
+    patch_padding: list[int] = [1, 1]
+    patch_embed_dim: int = 8
+    num_heads: int = 1
+    qkv_pool_kernel: list[int] = [4, 4]
+    adaptive_kv_stride: int = 4
+    adaptive_window_size: int = 16
+    residual_pooling: bool = True
+    mlp_ratio: float = 4.0
+    qkv_bias: bool = True
+    drop_path_rate: float = 0.0
+    norm_channels: int = 8
+    use_abs_pos: bool = False
+    use_rel_pos: bool = True
+    rel_pos_zero_init: bool = True
+    fast_backprop: bool = False
 
 class VaeConfig(BaseModel):
     z_channels: int = 256
@@ -99,6 +135,7 @@ class LSTM_Config(BaseModel):
 
 class TrainingConfig(BaseModel):
     train_type: TrainTypes = TrainTypes.DEFAULT
+    grad_calc_way: GradientCalculationWays
     num_reps: int = 1
     steps: int = 30_000
     lr: float = 5e-6
@@ -111,13 +148,17 @@ class TrainingConfig(BaseModel):
 
 class Config(BaseModel):
     resume_training: ResumeTrain | None = None
+    
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    training: TrainingConfig = Field(default_factory=TrainingConfig)
+
     vae: VaeConfig = Field(default_factory=VaeConfig)
+    rev_vae: ReversibleVaeConfig = Field(default_factory=ReversibleVaeConfig)
+    
     rev_transformer: ReverseTransformerConfig = Field(default_factory=ReverseTransformerConfig)
     vanilla_transformer: VanillaTransformerConfig = Field(default_factory=VanillaTransformerConfig)
     lstm: LSTM_Config = Field(default_factory=LSTM_Config)
-    training: TrainingConfig = Field(default_factory=TrainingConfig)
 
 
 class ConfigGroup(BaseModel):
@@ -132,14 +173,15 @@ if __name__ == "__main__":
     ####    GROUP VAE ONLY    ####
     ##############################
     
-    vae_only_group = ConfigGroup(
+    rev_vae_only_group = ConfigGroup(
         group=[
             Config(
                 general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-                    project="temp-verse-former-vae",
-                    name="temp-verse-former-vae",
-                    log_to_wandb=True
+                    project="temp-verse-former-rev-vae",
+                    name="temp-verse-former-rev-vae",
+                    log_to_wandb=True,
+                    temp_model_type=None,
+                    vae_model_type=VaeModelTypes.REV_VAE,
                 ),
                 data=DataConfig(
                     temporal_patterns=[],
@@ -147,358 +189,119 @@ if __name__ == "__main__":
                     batch_size=16
                 ),
                 training=TrainingConfig(
-                    train_type=TrainTypes.VAE_ONLY
-                )
+                    train_type=TrainTypes.VAE_ONLY,
+                    grad_calc_way=GradientCalculationWays.VANILLA_BP,
+                ),
             )
         ]
     )
 
-    with open("configs/vae-only.yaml", "w", encoding="utf-8") as f:
+    with open("configs/rev-vae-only.yaml", "w", encoding="utf-8") as f:
         yaml.safe_dump(
-            vae_only_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
-
-    
-    ##########################################
-    ####    GROUP TempVerseFormer ONLY    ####
-    ##########################################
-    
-    temp_verse_former_only_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-                    project="temp-verse-former-only",
-                    name="temp-verse-former-only",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-                    project="temp-verse-former-only",
-                    name="temp-verse-former-only--all-patterns",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-former-only.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_former_only_group.model_dump(mode="json"),
+            rev_vae_only_group.model_dump(mode="json"),
             f, allow_unicode=True, default_flow_style=None, width=float("inf")
         )
 
 
-    ###################################################
-    ####    GROUP TempVerseFormerVanillaBP ONLY    ####
-    ###################################################
-    
-    temp_verse_former_vanilla_bp_only_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-                    project="temp-verse-former-vanilla-bp-only",
-                    name="temp-verse-former-vanilla-bp-only",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-                    project="temp-verse-former-vanilla-bp-only",
-                    name="temp-verse-former-vanilla-bp-only--all-patterns",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-former-vanilla-bp-only.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_former_vanilla_bp_only_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
-
-
-    #############################################
-    ####    GROUP VanillaTransformer ONLY    ####
-    #############################################
-    
-    temp_verse_vanilla_transformer_only_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-                    project="temp-verse-vanilla-transformer-only",
-                    name="temp-verse-vanilla-transformer-only",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-                    project="temp-verse-vanilla-transformer-only",
-                    name="temp-verse-vanilla-transformer-only--all-patterns",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-vanilla-transformer-only.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_vanilla_transformer_only_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
-
-
-    ###############################
-    ####    GROUP LSTM ONLY    ####
-    ###############################
-    
-    temp_verse_lstm_only_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.LSTM,
-                    project="temp-verse-lstm-only",
-                    name="temp-verse-lstm-only",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.LSTM,
-                    project="temp-verse-lstm-only",
-                    name="temp-verse-lstm-only--all-patterns",
-                    log_to_wandb=True,
-                    pretrained_vae_model_path="pretrained_vae/vae-model.pt"
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                ),
-                training=TrainingConfig(
-                    steps=25000,
-                    train_type=TrainTypes.TEMP_ONLY
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-lstm-only.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_lstm_only_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
-
-    
     #####################################
-    ####    GROUP TempVerseFormer    ####
+    ####    GROUP Temp Model ONLY    ####
     #####################################
     
-    temp_verse_former_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-                    project="temp-verse-former",
-                    name="temp-verse-former",
-                    log_to_wandb=True
+    for temp_model in TempModelTypes.__members__.keys():
+        temp_model_name = temp_model.lower().replace("_", "-")
+        temp_model_only_group = ConfigGroup(
+            group=[
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}-only",
+                        name=f"{temp_model_name}-only",
+                        log_to_wandb=True,
+                        pretrained_vae_model_path="pretrained_vae/vae-model.pt",
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.REV_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[]
+                    ),
+                    training=TrainingConfig(
+                        steps=25000,
+                        train_type=TrainTypes.TEMP_ONLY,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
                 ),
-                data=DataConfig(
-                    temporal_patterns=[]
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}-only",
+                        name=f"{temp_model_name}--all-patterns",
+                        log_to_wandb=True,
+                        pretrained_vae_model_path="pretrained_vae/vae-model.pt",
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.REV_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                    ),
+                    training=TrainingConfig(
+                        steps=25000,
+                        train_type=TrainTypes.TEMP_ONLY,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
                 )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER,
-                    project="temp-verse-former",
-                    name="temp-verse-former--all-patterns",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-former.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_former_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
+            ]
         )
 
-
-    ##############################################
-    ####    GROUP TempVerseFormerVanillaBP    ####
-    ##############################################
-    
-    temp_verse_former_vanilla_bp_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-                    project="temp-verse-former-vanilla-bp",
-                    name="temp-verse-former-vanilla-bp",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP,
-                    project="temp-verse-former-vanilla-bp",
-                    name="temp-verse-former-vanilla-bp--all-patterns",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                )
+        with open(f"configs/{temp_model_name}-only.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                temp_model_only_group.model_dump(mode="json"),
+                f, allow_unicode=True, default_flow_style=None, width=float("inf")
             )
-        ]
-    )
-
-    with open("configs/temp-verse-former-vanilla-bp.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_former_vanilla_bp_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
-
-
-    ########################################
-    ####    GROUP VanillaTransformer    ####
-    ########################################
-    
-    temp_verse_vanilla_transformer = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-                    project="temp-verse-vanilla-transformer",
-                    name="temp-verse-vanilla-transformer",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[]
-                )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.VANILLA_TRANSFORMER,
-                    project="temp-verse-vanilla-transformer",
-                    name="temp-verse-vanilla-transformer--all-patterns",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-vanilla-transformer.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_vanilla_transformer.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
 
 
     ##########################
-    ####    GROUP LSTM    ####
+    ####    GROUP FULL    ####
     ##########################
     
-    temp_verse_lstm = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.LSTM,
-                    project="temp-verse-lstm",
-                    name="temp-verse-lstm",
-                    log_to_wandb=True
+    for temp_model in TempModelTypes.__members__.keys():
+        temp_model_name = temp_model.lower().replace("_", "-")
+        temp_model_group = ConfigGroup(
+            group=[
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.REV_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[]
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
                 ),
-                data=DataConfig(
-                    temporal_patterns=[]
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--all-patterns",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.REV_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
                 )
-            ),
-            Config(
-                general=GeneralConfig(
-                    experiment_type=ExperimentTypes.LSTM,
-                    project="temp-verse-lstm",
-                    name="temp-verse-lstm--all-patterns",
-                    log_to_wandb=True
-                ),
-                data=DataConfig(
-                    temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                )
-            )
-        ]
-    )
-
-    with open("configs/temp-verse-lstm.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            temp_verse_lstm.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
+            ]
         )
+
+        with open(f"configs/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                temp_model_group.model_dump(mode="json"),
+                f, allow_unicode=True, default_flow_style=None, width=float("inf")
+            )
