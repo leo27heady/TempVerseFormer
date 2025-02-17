@@ -9,6 +9,7 @@ from einops import rearrange
 from torchvision.utils import save_image
 
 from .vae import VAE
+from .rev_vae import Reversible_MViT_VAE
 from .rev_transformer import RevFormer
 from .vanilla_transformer import VanillaTransformer
 from .lstm import Seq2SeqLSTM
@@ -22,7 +23,7 @@ class Trainer():
     Parameters
     ----------
     model :  RevFormer | VanillaTransformer | Seq2SeqLSTM
-    vae_model : VAE
+    vae_model : VAE | Reversible_MViT_VAE
 
     optimizer : torch.optim.Optimizer instance
 
@@ -239,6 +240,21 @@ class Trainer():
             if step == self.training_config.steps:
                 break
     
+    def calculate_kl_loss(self, encoder_output):
+        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
+        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
+        return kl_loss
+    
+    def calculate_full_kl_loss(self, encoder_output):
+        if isinstance(self.vae_model, Reversible_MViT_VAE):
+            O1, O2 = torch.chunk(encoder_output, 2, dim=2)
+            kl_loss = self.calculate_kl_loss(O1) + self.calculate_kl_loss(O2)
+        else:
+            kl_loss = self.calculate_kl_loss(encoder_output)
+
+        self.buffer['kl_losses'].append(kl_loss.item())
+        return kl_loss
+    
     def train_default(self, input_images, expected_images, time_to_pred):
 
         batch_size, context_size, c, w, h = input_images.shape
@@ -265,10 +281,7 @@ class Trainer():
 
         loss = recon_loss + vae_recon_loss
 
-        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
-        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
-        self.buffer['kl_losses'].append(kl_loss.item())
-
+        kl_loss = self.calculate_full_kl_loss(encoder_output)
         loss += self.kl_weight * kl_loss
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
@@ -296,10 +309,7 @@ class Trainer():
         recon_loss = self.recon_criterion(decoder_output, expected_images)
         self.buffer['vae_recon_losses'].append(recon_loss.item())
 
-        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
-        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
-        self.buffer['kl_losses'].append(kl_loss.item())
-
+        kl_loss = self.calculate_full_kl_loss(encoder_output)
         loss = recon_loss + (self.kl_weight * kl_loss)
 
         lpips_loss = torch.mean(self.lpips_loss_fn(

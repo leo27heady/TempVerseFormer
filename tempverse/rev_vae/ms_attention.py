@@ -92,6 +92,10 @@ class MultiScaleAttention(nn.Module):
         if window_size:
             self.q_win_size = window_size // stride_q
             self.kv_win_size = window_size // stride_kv
+
+            if self.q_win_size <= 1 or self.kv_win_size <= 1:
+                self.window_size = 0
+
         self.residual_pooling = residual_pooling
 
         

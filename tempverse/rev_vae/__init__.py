@@ -1,1 +1,1 @@
-from .model import ReversibleMViT
+from .model import Reversible_MViT_VAE

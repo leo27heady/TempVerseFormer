@@ -8,9 +8,10 @@ import torch
 from torch.utils.data import DataLoader
 from dotenv import load_dotenv
 
-from tempverse.config import Config, ConfigGroup, ExperimentTypes, TrainTypes
+from tempverse.config import Config, ConfigGroup, TempModelTypes, VaeModelTypes, GradientCalculationWays, TrainTypes
 from tempverse.shape_data_stream import ShapeDataset
 from tempverse.vae import VAE
+from tempverse.rev_vae import Reversible_MViT_VAE
 from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
 from tempverse.lstm import Seq2SeqLSTM
@@ -33,7 +34,8 @@ if __name__ == "__main__":
     for i, config in enumerate(config_group.group, start=1):
 
         logger.info(f"Processing config {i}/{len(config_group.group)}")
-        logger.info(f"Task: {config.general.experiment_type.value}, Project: {config.general.project}, Name: {config.general.name}")
+        logger.info(f"Project: {config.general.project}, Name: {config.general.name}")
+        logger.info(f"Temp model: {config.general.temp_model_type}, VAE model: {config.general.vae_model_type}")
 
         device = torch.device("cuda")
 
@@ -41,28 +43,38 @@ if __name__ == "__main__":
         for j in range(1, config.training.num_reps + 1):
             logger.info("{}/{} rep".format(j, config.training.num_reps))
 
+            is_efficient_memory = (config.training.grad_calc_way == GradientCalculationWays.REVERSE_CALCULATION)
+            
             model = None
             if config.training.train_type != TrainTypes.VAE_ONLY:
-                match config.general.experiment_type:
-                    case ExperimentTypes.TEMP_VERSE_FORMER:
-                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=True)
-                        logger.info("RevFormer model with efficient backward propagation successfully initialized")
-                    case ExperimentTypes.TEMP_VERSE_FORMER_VANILLA_BP:
-                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=False)
-                        logger.info("RevFormer model with vanilla backward propagation successfully initialized")
-                    case ExperimentTypes.VANILLA_TRANSFORMER:
+                match config.general.temp_model_type:
+                    case TempModelTypes.REV_TRANSFORMER:
+                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=is_efficient_memory)
+                        logger.info(f"RevFormer model with{'' if is_efficient_memory else 'out'} efficient backward propagation successfully initialized")
+                    case TempModelTypes.VANILLA_TRANSFORMER:
                         model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
                         logger.info("VanillaTransformer model successfully initialized")
-                    case ExperimentTypes.LSTM:
+                    case TempModelTypes.LSTM:
                         model = Seq2SeqLSTM(config.lstm)
                         logger.info("Seq2SeqLSTM model successfully initialized")
                     case _:
-                        error = f"Unknown Experiment Type: {config.general.experiment_type}"
+                        error = f"Unknown Temp Model Type: {config.general.temp_model_type}"
                         logger.error(error)
                         raise ValueError(error)
                 model.to(device)
 
-            vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)
+            match config.general.vae_model_type:
+                case VaeModelTypes.VANILLA_VAE:
+                    vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)
+                    logger.info(f"VAE model successfully initialized")
+                case VaeModelTypes.REV_VAE:
+                    vae_model = Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, custom_backward=is_efficient_memory).to(device)
+                    logger.info(f"Rev VAE model with{'' if is_efficient_memory else 'out'} efficient backward propagation successfully initialized")
+                case _:
+                    error = f"Unknown VAE Model Type: {config.general.vae_model_type}"
+                    logger.error(error)
+                    raise ValueError(error)
+            
             if config.training.train_type == TrainTypes.TEMP_ONLY:
                 assert config.general.pretrained_vae_model_path
                 vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
