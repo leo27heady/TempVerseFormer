@@ -74,6 +74,7 @@ class DataConfig(BaseModel):
     # TODO: Add validators like assert batch_time > context_size
 
 class ReversibleVaeConfig(BaseModel):
+    z_channels: int = 256
     encoder_stage_size: int = 4
     encoder_stages: int = 5
     encoder_jump_first_stage: bool = True
