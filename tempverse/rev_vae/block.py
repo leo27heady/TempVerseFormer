@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
+from .reversible import NotReversibleModule
 from .utils import attention_pool
 from .ms_attention import MultiScaleAttention
 
 
-class MultiScaleBlock(nn.Module):
+class MultiScaleBlock(NotReversibleModule):
     """Multiscale Transformer block, specifically for Stage Transitions."""
 
     def __init__(
@@ -98,6 +99,11 @@ class MultiScaleBlock(nn.Module):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            if "drop_path" in self.seeds:
+                torch.manual_seed(self.seeds.pop("drop_path"))
+            else:
+                self.seed_cuda("drop_path")
+
             x_norm = self.norm1(x)
             x_block = self.attn(x_norm)
 
@@ -110,3 +116,6 @@ class MultiScaleBlock(nn.Module):
             x = x + self.drop_path(self.mlp(self.norm2(x)))
 
         return x
+
+    def forward_for_backward(self, x):
+        return self.forward(x)

@@ -1,13 +1,12 @@
-import sys
-
 import torch
 import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
+from .reversible import ReversibleModule
 from .ms_attention import MultiScaleAttention
 
 
-class ReversibleMultiScaleBlock(nn.Module):
+class ReversibleMultiScaleBlock(ReversibleModule):
     """Reversible Multiscale Transformer block, no pool residual or projection."""
 
     def __init__(
@@ -53,7 +52,9 @@ class ReversibleMultiScaleBlock(nn.Module):
             input_size (int or None): Input resolution.
             enable_amp (bool): If True, enable mixed precision training.
         """
+
         super().__init__()
+
         self.norm1 = norm_layer(dim)
         self.attn = MultiScaleAttention(
             dim,
@@ -84,37 +85,10 @@ class ReversibleMultiScaleBlock(nn.Module):
         )
         self.enable_amp = enable_amp
 
-        self.seeds = {}
-
         if stride_q > 1:
             raise ValueError(
                 "stride_q > 1 is not supported for ReversibleMultiScaleBlock."
             )
-
-    def seed_cuda(self, key):
-        """
-        Fix seeds to allow for stochastic elements such as
-        dropout to be reproduced exactly in activation
-        recomputation in the backward pass.
-
-        From RevViT.
-        """
-
-        # randomize seeds
-        # use cuda generator if available
-        if (
-            hasattr(torch.cuda, "default_generators")
-            and len(torch.cuda.default_generators) > 0
-        ):
-            # GPU
-            device_idx = torch.cuda.current_device()
-            seed = torch.cuda.default_generators[device_idx].seed()
-        else:
-            # CPU
-            seed = int(torch.seed() % sys.maxsize)
-
-        self.seeds[key] = seed
-        torch.manual_seed(self.seeds[key])
 
     def F(self, x):
         """Attention forward pass"""
@@ -128,81 +102,84 @@ class ReversibleMultiScaleBlock(nn.Module):
             x_out = self.mlp(self.norm2(x))
         return x_out
 
-    def forward(self, X_1, X_2):
-        assert X_1.shape == X_2.shape, "Input shapes are different."
+    def forward(self, x):
+        I_1, I_2 = torch.chunk(x, 2, dim=-1)
 
         self.seed_cuda("attn")
-        f_X_2 = self.F(X_1)
+        f_out = self.F(I_1)
 
         self.seed_cuda("droppath")
-        Y_1 = X_1 + self.drop_path(f_X_2)
+        O_2 = I_2 + self.drop_path(f_out)
 
         # free memory
-        del X_1
+        del I_2
 
         self.seed_cuda("mlp")
-        g_Y_1 = self.G(Y_1)
+        g_out = self.G(O_2)
 
         torch.manual_seed(self.seeds["droppath"])
-        Y_2 = X_2 + self.drop_path(g_Y_1)
+        O_1 = I_1 + self.drop_path(g_out)
 
-        del X_2
+        del I_1
 
-        return Y_1, Y_2
+        return torch.cat([O_1, O_2], dim=-1)
 
-    def backward_pass(self, Y_1, Y_2, dY_1, dY_2):
+    def backward_pass(self, y, dy):
         """
         equations for recovering activations:
-        X2 = Y2 - MLP(Y1)
-        X1 = Y1 - Attn(X2)
+        I1 = O1 - MLP(O2)
+        I2 = O2 - Attention(I1)
         """
+        
+        O_1, O_2 = torch.chunk(y, 2, dim=-1)
+        dY_1, dY_2 = torch.chunk(dy, 2, dim=-1)
 
         # temporarily record intermediate activation for G
         # and use them for gradient calculation of G
         with torch.enable_grad():
-            Y_1.requires_grad = True
+            O_2.requires_grad = True
 
             torch.manual_seed(self.seeds["mlp"])
-            g_Y_1 = self.G(Y_1)
+            g_out = self.G(O_2)
 
             torch.manual_seed(self.seeds["droppath"])
-            g_Y_1 = self.drop_path(g_Y_1)
+            g_out = self.drop_path(g_out)
 
-            g_Y_1.backward(dY_2, retain_graph=True)
+            g_out.backward(dY_1, retain_graph=True)
 
         # activation recomputation is by design and not part of
         # the computation graph in forward pass.
         with torch.no_grad():
-            X_2 = Y_2 - g_Y_1
-            del g_Y_1
+            I_1 = O_1 - g_out
+            del g_out
 
-            dY_1 = dY_1 + Y_1.grad
-            Y_1.grad = None
+            dY_2 = dY_2 + O_2.grad
+            O_2.grad = None
 
         # record F activations and calc gradients on F
         with torch.enable_grad():
-            X_2.requires_grad = True
+            I_1.requires_grad = True
 
             torch.manual_seed(self.seeds["attn"])
-            f_X_2 = self.F(X_2)
+            f_out = self.F(I_1)
 
             torch.manual_seed(self.seeds["droppath"])
-            f_X_2 = self.drop_path(f_X_2)
+            f_out = self.drop_path(f_out)
 
-            f_X_2.backward(dY_1, retain_graph=True)
+            f_out.backward(dY_2, retain_graph=True)
 
         # propagate reverse computed activations at the start of
         # the previous block for backprop.s
         with torch.no_grad():
-            X_1 = Y_1 - f_X_2
+            I_2 = O_2 - f_out
 
-            del f_X_2, Y_1
-            dY_2 = dY_2 + X_2.grad
+            del f_out, O_2
+            dY_1 = dY_1 + I_1.grad
 
-            X_2.grad = None
-            X_2 = X_2.detach()
+            I_1.grad = None
+            I_1 = I_1.detach()
 
-        return X_1, X_2, dY_1, dY_2
+        return torch.cat([I_1, I_2], dim=-1), torch.cat([dY_1, dY_2], dim=-1)
 
     def backward_pass_recover(self, Y_1, Y_2):
         """

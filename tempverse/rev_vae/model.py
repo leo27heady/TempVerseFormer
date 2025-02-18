@@ -10,7 +10,6 @@ from .decoder import Rev_MViT_Decoder
 from ..config import ReversibleVaeConfig
 
 
-
 class Reversible_MViT_VAE(nn.Module):
     """
     This module adds reversibility on top of Multiscale Vision Transformer (MViT) from :paper:'mvitv2'.
@@ -69,9 +68,9 @@ class Reversible_MViT_VAE(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
             trunc_normal_(m.weight, std=0.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
+            if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
@@ -79,20 +78,6 @@ class Reversible_MViT_VAE(nn.Module):
         elif isinstance(m, nn.GroupNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
-    @staticmethod
-    def vanilla_backward(h, layers):
-        """
-        Using rev layers without rev backward propagation. Debugging purposes only.
-        Deactivated with self.custom_backward.
-        """
-        # split into hidden states (h) and attention_output (a)
-        h, a = torch.chunk(h, 2, dim=-1)
-        
-        for _, layer in enumerate(layers):
-            a, h = layer(a, h)
-
-        return torch.cat([a, h], dim=-1)
 
     def forward(self, x):
         z, encoder_output = self.encoder(x)

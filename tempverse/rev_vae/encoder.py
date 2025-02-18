@@ -3,16 +3,16 @@
 
 import torch
 import torch.nn as nn
-from timm.models.layers import trunc_normal_
 from einops import rearrange
 
+from .reversible import ReversibleModule, NotReversibleModule
 from .block import MultiScaleBlock
 from .rev_block import ReversibleMultiScaleBlock
 from .rev_back_prop import EfficientMViTRevBackProp
 from ..config import ReversibleVaeConfig
 
 
-class PatchEmbed(nn.Module):
+class PatchEmbed(NotReversibleModule):
     """
     Image to Patch Embedding.
     """
@@ -24,6 +24,7 @@ class PatchEmbed(nn.Module):
         padding=(0, 0),
         im_channels=3,
         embed_dim=8,
+        enable_amp=False
     ):
         """
         Args:
@@ -35,6 +36,7 @@ class PatchEmbed(nn.Module):
         """
         super().__init__()
 
+        self.enable_amp = enable_amp
         self.proj = nn.Conv2d(
             im_channels,
             embed_dim,
@@ -44,15 +46,24 @@ class PatchEmbed(nn.Module):
         )
 
     def forward(self, x):
-        x = self.proj(x)
-        x = rearrange(x, "B C H W -> B H W C")
-        x = torch.cat([x, x], dim=-1)
+        with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            if "patch" in self.seeds:
+                torch.manual_seed(self.seeds.pop("patch"))
+            else:
+                self.seed_cuda("patch")
+            
+            x = self.proj(x)
+            x = rearrange(x, "B C H W -> B H W C")
+            x = torch.cat([x, x], dim=-1)
         return x
 
+    def forward_for_backward(self, x):
+        return self.forward(x)
 
-class PreQuantSampling(nn.Module):
+
+class PreQuantModule(NotReversibleModule):
     """
-    Prequant sampling module
+    Prequant module
     """
 
     def __init__(
@@ -60,33 +71,71 @@ class PreQuantSampling(nn.Module):
         norm_channels=8,
         in_dim=256,
         out_dim=1024,
+        enable_amp=False
     ):
         super().__init__()
 
+        self.enable_amp = enable_amp
         self.encoder_norm_out = nn.GroupNorm(norm_channels, in_dim)
         self.act_layer = nn.GELU()
         self.encoder_conv_out = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
         # Latent Dimension is 2*Latent because they are predicting mean & variance
         self.pre_quant_conv = nn.Conv2d(out_dim, out_dim, kernel_size=1)
 
+    def forward(self, x):
+        with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            if "pre_quant" in self.seeds:
+                torch.manual_seed(self.seeds.pop("pre_quant"))
+            else:
+                self.seed_cuda("pre_quant")
+
+            x = rearrange(x, "B H W C -> B C H W")
+            x = self.encoder_norm_out(x)
+            x = self.act_layer(x)
+            x = self.encoder_conv_out(x)
+            x = self.pre_quant_conv(x)
+        
+        return x
+
+    def forward_for_backward(self, x):
+        return self.forward(x)
+
+
+class SamplingModule(NotReversibleModule):
+    """
+    Sampling module
+    """
+
+    def __init__(
+        self,
+        enable_amp=False
+    ):
+        super().__init__()
+
+        self.enable_amp = enable_amp
+
     def sample_output(self, out):
         mean, logvar = torch.chunk(out, 2, dim=1)
         std = torch.exp(0.5 * logvar)
-        sample = mean + std * torch.randn(mean.shape).to(device=out.device)
+        sample = mean + std * torch.randn_like(mean)
         return sample
 
     def forward(self, x):
-        x = rearrange(x, "B H W C -> B C H W")
-        x = self.encoder_norm_out(x)
-        x = self.act_layer(x)
-        x = self.encoder_conv_out(x)
-        x = self.pre_quant_conv(x)
+        with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            if "sample" in self.seeds:
+                torch.manual_seed(self.seeds.pop("sample"))
+            else:
+                self.seed_cuda("sample")
+            
+            O1, O2 = torch.chunk(x, 2, dim=1)
+            o1_sample = self.sample_output(O1)
+            o2_sample = self.sample_output(O2)
+            sample = torch.cat([o1_sample, o2_sample], dim=1)
         
-        O1, O2 = torch.chunk(x, 2, dim=1)
-        o1_sample = self.sample_output(O1)
-        o2_sample = self.sample_output(O2)
-        sample = torch.cat([o1_sample, o2_sample], dim=1)
-        return sample, x
+        return sample
+
+    def forward_for_backward(self, x):
+        return self.forward(x)
 
 
 class Rev_MViT_Encoder(nn.Module):
@@ -102,44 +151,20 @@ class Rev_MViT_Encoder(nn.Module):
         enable_amp: bool = False,
         custom_backward: bool = True,
     ):
-        """
-        Args:
-            img_size (int): Input image size.
-            patch_kernel (tuple): kernel size for patch embedding.
-            patch_stride (tuple): stride size for patch embedding.
-            patch_padding (tuple): padding size for patch embedding.
-            im_channels (int): Number of input image channels.
-            patch_embed_dim (int): Patch embedding dimension.
-            depth (int): Depth of MViT.
-            num_heads (int): Number of base attention heads in each MViT block.
-            qkv_pool_kernel (tuple): kernel size for qkv pooling layers.
-            adaptive_kv_stride (int): adaptive stride size for kv pooling.
-            adaptive_window_size (int): adaptive window size for window attention blocks.
-            residual_pooling (bool): If true, enable residual pooling.
-            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-            qkv_bias (bool): If True, add a learnable bias to query, key, value.
-            drop_path_rate (float): Stochastic depth rate.
-            norm_layer (nn.Module): Normalization layer.
-            act_layer (nn.Module): Activation layer.
-            use_abs_pos (bool): If True, use absolute positional embeddings.
-            use_rel_pos (bool): If True, add relative positional embeddings to the attention map.
-            rel_pos_zero_init (bool): If True, zero initialize relative positional parameters.
-            window_size (int): Window size for window attention blocks.
-            fast_backprop (bool): If True, use fast backprop, i.e. PaReprop.
-            enable_amp (bool): If True, enable automatic mixed precision.
-        """
-        
         super().__init__()
 
         self.custom_backward = custom_backward
         
-        self.patch_embed = PatchEmbed(
+        self.encode_blocks = nn.ModuleList()
+
+        self.encode_blocks.append(PatchEmbed(
             kernel_size=config.patch_kernel,
             stride=config.patch_stride,
             padding=config.patch_padding,
             im_channels=im_channels,
             embed_dim=config.patch_embed_dim,
-        )
+            enable_amp=enable_amp
+        ))
         embed_dim = config.patch_embed_dim
 
         encoder_depth = config.encoder_stage_size * config.encoder_stages
@@ -152,7 +177,6 @@ class Rev_MViT_Encoder(nn.Module):
         # self._out_feature_channels = {}
         
         stage = 1
-        self.encode_blocks = nn.ModuleList()
         for block_number in range(config.encoder_stage_size if config.encoder_jump_first_stage else 1, encoder_depth + 1):
             is_last_stage_block = block_number % config.encoder_stage_size == 0 and stage <= config.encoder_stages
 
@@ -192,74 +216,27 @@ class Rev_MViT_Encoder(nn.Module):
         
         assert 1 in input_size
         
-        self.pre_quant_sample = PreQuantSampling(config.norm_channels, embed_dim, 4 * config.z_channels)
+        self.encode_blocks.append(PreQuantModule(config.norm_channels, embed_dim, 4 * config.z_channels, enable_amp))
 
-    #     self.use_fast_backprop = config.fast_backprop
-
-    #     if self.use_fast_backprop:
-    #         # Initialize streams globally
-    #         global s1, s2
-    #         s1 = torch.cuda.default_stream(device=torch.cuda.current_device())
-    #         # s1 = torch.cuda.Stream(device=torch.cuda.current_device())
-    #         s2 = torch.cuda.Stream(device=torch.cuda.current_device())
-
-    #     self.apply(self._init_weights)
-
-    # def _init_weights(self, m):
-    #     if isinstance(m, nn.Linear):
-    #         trunc_normal_(m.weight, std=0.02)
-    #         if isinstance(m, nn.Linear) and m.bias is not None:
-    #             nn.init.constant_(m.bias, 0)
-    #     elif isinstance(m, nn.LayerNorm):
-    #         nn.init.constant_(m.bias, 0)
-    #         nn.init.constant_(m.weight, 1.0)
-    #     elif isinstance(m, nn.GroupNorm):
-    #         nn.init.constant_(m.bias, 0)
-    #         nn.init.constant_(m.weight, 1.0)
+        self.sampling = SamplingModule(enable_amp)
 
 
     @staticmethod
-    def vanilla_backward(h, layers):
+    def vanilla_backward(x, modules):
         """
         Using rev layers without rev backward propagation. Debugging purposes only.
         Deactivated with self.custom_backward.
         """
-        # split into hidden states (h) and attention_output (a)
-        h, a = torch.chunk(h, 2, dim=-1)
-        
-        for _, layer in enumerate(layers):
-            a, h = layer(a, h)
-
-        return torch.cat([a, h], dim=-1)
-    
-    def create_blocks_stack(self, blocks):
-        stack = []
-        for l_i in range(len(blocks)):
-            if isinstance(blocks[l_i], MultiScaleBlock):
-                stack.append(("Stage Transition", l_i))
-            else:
-                if len(stack) == 0 or stack[-1][0] == "Stage Transition":
-                    stack.append(("Reversible", []))
-                stack[-1][1].append(l_i)
-        return stack
+        for module in modules:
+            x = module(x)
+        return x
 
     def forward(self, x):
-        x = self.patch_embed(x)
-
-        # process layers in reversible and irreversible stacks
-        stack = self.create_blocks_stack(self.encode_blocks)
-        for i, substack in enumerate(stack):
-            if substack[0] == "Stage Transition":
-                x = self.encode_blocks[substack[1]](x)
-            else:
-                if not self.training or not self.custom_backward:
-                    executing_fn = Rev_MViT_Encoder.vanilla_backward
-                else:
-                    executing_fn = EfficientMViTRevBackProp.apply
-
-                x = executing_fn(
-                    x, self.encode_blocks[substack[1][0] : substack[1][-1] + 1]
-                )
+        if not self.training or not self.custom_backward:
+            x = Rev_MViT_Encoder.vanilla_backward(x, self.encode_blocks)
+        else:
+            x = EfficientMViTRevBackProp.apply(x, self.encode_blocks)
         
-        sample, x = self.pre_quant_sample(x)
+        sample = self.sampling(x)
+
         return sample, x

@@ -1,5 +1,7 @@
 import torch
-from torch.autograd import Function as Function
+from torch.autograd import Function
+
+from .reversible import ReversibleModule, NotReversibleModule
 
 
 class EfficientMViTRevBackProp(Function):
@@ -15,55 +17,84 @@ class EfficientMViTRevBackProp(Function):
     def forward(
         ctx,
         x,
-        layers,
+        modules,
     ):
         """
         Reversible Forward pass.
-        Each reversible layer implements its own forward pass pass logic.
+        Each reversible module implements its own forward pass logic.
         """
+        
+        is_prev_reversible = True
+        all_tensors = []
+        # with torch.no_grad():
+        for module in modules:
+            if isinstance(module, ReversibleModule):
+                is_prev_reversible = True
+            elif isinstance(module, NotReversibleModule) and is_prev_reversible:
+                is_prev_reversible = False
+                all_tensors.append(x.detach())
 
-        # obtaining X_1 and X_2 from the concatenated input
-        X_1, X_2 = torch.chunk(x, 2, dim=-1)
+            x = module(x)
+        
+        x = x.detach()
+        if is_prev_reversible:
+            all_tensors.append(x)
 
-        for layer in layers:
-            X_1, X_2 = layer(X_1, X_2)
-            all_tensors = [X_1.detach(), X_2.detach()]
-
-        # saving only the final activations of the last reversible block for the last timestep
+        # saving only the final activations of the last reversible block
         # for backward pass, no intermediate activations are needed.
         ctx.save_for_backward(*all_tensors)
-        ctx.layers = layers
-
-        return torch.cat([X_1, X_2], dim=-1)
+        ctx.modules = modules
+        return x
 
     @staticmethod
     def backward(ctx, dx):
         """
         Reversible Backward pass.
-        Each layer implements its own logic for backward pass (both
+        Each module implements its own logic for backward pass (both
         activation recomputation and grad calculation).
         """
-        # obtaining gradients dX_1 and dX_2 from the concatenated input
-        dX_1, dX_2 = torch.chunk(dx, 2, dim=-1)
 
-        # retrieve the last saved activations, to start rev recomputation
-        X_1, X_2 = ctx.saved_tensors
-        # layer weights
-        layers = ctx.layers
+        # retrieve the saved activations, to start rev recomputation
+        saved_tensors = list(ctx.saved_tensors) + [None]
+        x = None
+        modules = ctx.modules
 
-        for _, layer in enumerate(layers[::-1]):
-            # this is recomputing both the activations and the gradients wrt
-            # those activations.
-            X_1, X_2, dX_1, dX_2 = layer.backward_pass(
-                Y_1=X_1,
-                Y_2=X_2,
-                dY_1=dX_1,
-                dY_2=dX_2,
-            )
+        def propagate_non_reversible(x, dx, accumulated_non_reversible):
+            del x
+            del saved_tensors[-1]
+            x = saved_tensors[-1]
+            future_x = x
+            
+            with torch.enable_grad():
+                for module in modules[accumulated_non_reversible[-1] : accumulated_non_reversible[0] + 1]:
+                    if future_x.is_leaf: future_x.requires_grad = True
+                    future_x = module.forward_for_backward(future_x)
+                
+                future_x.backward(dx, retain_graph=True)
+                out_dx = torch.autograd.grad(future_x, x, grad_outputs=dx, retain_graph=True)[0]
+                future_x.grad = None
+                del dx, future_x
+            
+            accumulated_non_reversible.clear()
+
+            return x, out_dx
+
+        accumulated_non_reversible: list[int] = []
+        for index in reversed(range(len(modules))):
+            module = modules[index]
+            if isinstance(module, NotReversibleModule):
+                accumulated_non_reversible.append(index)
+            elif isinstance(module, ReversibleModule):
+                if accumulated_non_reversible:
+                    x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
+                
+                # this is recomputing both the activations and the gradients wrt those activations.
+                x, dx = module.backward_pass(y=x, dy=dx)
         
-        # final input gradient to be passed backward to the patchification layer
-        dx = torch.cat([dX_1, dX_2], dim=-1)
+        if accumulated_non_reversible:
+            x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
 
-        del dX_1, dX_2, X_1, X_2
+        del x
+        del saved_tensors[-1]
 
         return dx, None, None
