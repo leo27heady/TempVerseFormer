@@ -49,5 +49,8 @@ class NotReversibleModule(torch.nn.Module, ABC):
         pass
     
     def seed_cuda(self, key):
-        self.seeds[key] = seed_generator()
-        torch.manual_seed(self.seeds[key])
+        if key in self.seeds:
+            torch.manual_seed(self.seeds.pop(key))
+        else:
+            self.seeds[key] = seed_generator()
+            torch.manual_seed(self.seeds[key])

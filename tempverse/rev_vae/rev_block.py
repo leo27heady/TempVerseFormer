@@ -139,10 +139,10 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         with torch.enable_grad():
             O_2.requires_grad = True
 
-            torch.manual_seed(self.seeds["mlp"])
+            self.seed_cuda("mlp")
             g_out = self.G(O_2)
 
-            torch.manual_seed(self.seeds["droppath"])
+            self.seed_cuda("droppath")
             g_out = self.drop_path(g_out)
 
             g_out.backward(dY_1, retain_graph=True)
@@ -160,10 +160,10 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         with torch.enable_grad():
             I_1.requires_grad = True
 
-            torch.manual_seed(self.seeds["attn"])
+            self.seed_cuda("attn")
             f_out = self.F(I_1)
 
-            torch.manual_seed(self.seeds["droppath"])
+            self.seed_cuda("droppath")
             f_out = self.drop_path(f_out)
 
             f_out.backward(dY_2, retain_graph=True)

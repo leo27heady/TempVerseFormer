@@ -51,10 +51,7 @@ class UnpatchEmbed(NotReversibleModule):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
-            if "unpatch" in self.seeds:
-                torch.manual_seed(self.seeds.pop("unpatch"))
-            else:
-                self.seed_cuda("unpatch")
+            self.seed_cuda("unpatch")
 
             x = rearrange(x, "B H W C -> B C H W")
             x = self.norm_out(x)

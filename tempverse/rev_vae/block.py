@@ -99,10 +99,7 @@ class MultiScaleBlock(NotReversibleModule):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
-            if "drop_path" in self.seeds:
-                torch.manual_seed(self.seeds.pop("drop_path"))
-            else:
-                self.seed_cuda("drop_path")
+            self.seed_cuda("drop_path")
 
             x_norm = self.norm1(x)
             x_block = self.attn(x_norm)

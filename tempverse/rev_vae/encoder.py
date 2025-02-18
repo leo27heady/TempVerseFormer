@@ -47,10 +47,7 @@ class PatchEmbed(NotReversibleModule):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
-            if "patch" in self.seeds:
-                torch.manual_seed(self.seeds.pop("patch"))
-            else:
-                self.seed_cuda("patch")
+            self.seed_cuda("patch")
             
             x = self.proj(x)
             x = rearrange(x, "B C H W -> B H W C")
@@ -84,10 +81,7 @@ class PreQuantModule(NotReversibleModule):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
-            if "pre_quant" in self.seeds:
-                torch.manual_seed(self.seeds.pop("pre_quant"))
-            else:
-                self.seed_cuda("pre_quant")
+            self.seed_cuda("pre_quant")
 
             x = rearrange(x, "B H W C -> B C H W")
             x = self.encoder_norm_out(x)
@@ -122,10 +116,7 @@ class SamplingModule(NotReversibleModule):
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
-            if "sample" in self.seeds:
-                torch.manual_seed(self.seeds.pop("sample"))
-            else:
-                self.seed_cuda("sample")
+            self.seed_cuda("sample")
             
             O1, O2 = torch.chunk(x, 2, dim=1)
             o1_sample = self.sample_output(O1)
