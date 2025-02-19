@@ -23,6 +23,9 @@ class EfficientRevBackProp(Function):
         Reversible Forward pass.
         Each reversible module implements its own forward pass logic.
         """
+
+        assert all([isinstance(m, ReversibleModule) or isinstance(m, NotReversibleModule) for m in modules]), \
+            "Only instances of `ReversibleModule` and `NotReversibleModule` can be part of the grad function!"
         
         is_prev_reversible = True
         all_tensors = []
@@ -30,12 +33,9 @@ class EfficientRevBackProp(Function):
             for module in modules:
                 if isinstance(module, ReversibleModule):
                     is_prev_reversible = True
-                elif isinstance(module, NotReversibleModule):
-                    if is_prev_reversible:
-                        is_prev_reversible = False
-                        all_tensors.append(x.detach())
-                else:
-                    raise ValueError("Only instances of `ReversibleModule` and `NotReversibleModule` can be part of the grad function!")
+                elif isinstance(module, NotReversibleModule) and is_prev_reversible:
+                    is_prev_reversible = False
+                    all_tensors.append(x.detach())
 
                 x = module(x)
             
@@ -67,12 +67,14 @@ class EfficientRevBackProp(Function):
             del saved_tensors[-1]
             x = saved_tensors[-1]
             future_x = x
-            
+
             with torch.enable_grad():
-                for module in modules[accumulated_non_reversible[-1] : accumulated_non_reversible[0] + 1]:
+                start_index, end_index = accumulated_non_reversible[-1], accumulated_non_reversible[0]
+                not_reversible_modules: list[NotReversibleModule] = modules[start_index:end_index + 1]
+                for module in not_reversible_modules:
                     if future_x.is_leaf: future_x.requires_grad = True
                     future_x = module.forward_for_backward(future_x)
-                
+
                 future_x.backward(dx, retain_graph=True)
                 out_dx = torch.autograd.grad(future_x, x, grad_outputs=dx, retain_graph=True)[0]
                 future_x.grad = None
