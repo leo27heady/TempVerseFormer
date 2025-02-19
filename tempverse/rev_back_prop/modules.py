@@ -26,7 +26,7 @@ def seed_generator():
         # CPU
         seed = int(torch.seed() % sys.maxsize)
     
-    return 42 #seed
+    return seed
 
 
 class ReversibleModule(torch.nn.Module, ABC):
