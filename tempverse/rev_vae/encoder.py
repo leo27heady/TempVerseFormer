@@ -226,6 +226,7 @@ class Rev_MViT_Encoder(nn.Module):
         if not self.training or not self.custom_backward:
             x = Rev_MViT_Encoder.vanilla_backward(x, self.encode_blocks)
         else:
+            x.requires_grad_()
             x = EfficientMViTRevBackProp.apply(x, self.encode_blocks)
         
         sample = self.sampling(x)

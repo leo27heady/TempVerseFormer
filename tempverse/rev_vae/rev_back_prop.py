@@ -26,19 +26,19 @@ class EfficientMViTRevBackProp(Function):
         
         is_prev_reversible = True
         all_tensors = []
-        # with torch.no_grad():
-        for module in modules:
-            if isinstance(module, ReversibleModule):
-                is_prev_reversible = True
-            elif isinstance(module, NotReversibleModule) and is_prev_reversible:
-                is_prev_reversible = False
-                all_tensors.append(x.detach())
+        with torch.no_grad():
+            for module in modules:
+                if isinstance(module, ReversibleModule):
+                    is_prev_reversible = True
+                elif isinstance(module, NotReversibleModule) and is_prev_reversible:
+                    is_prev_reversible = False
+                    all_tensors.append(x.detach())
 
-            x = module(x)
-        
-        x = x.detach()
-        if is_prev_reversible:
-            all_tensors.append(x)
+                x = module(x)
+            
+            x = x.detach()
+            if is_prev_reversible:
+                all_tensors.append(x)
 
         # saving only the final activations of the last reversible block
         # for backward pass, no intermediate activations are needed.

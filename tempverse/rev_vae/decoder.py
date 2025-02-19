@@ -155,6 +155,7 @@ class Rev_MViT_Decoder(nn.Module):
         if not self.training or not self.custom_backward:
             x = Rev_MViT_Decoder.vanilla_backward(x, self.decode_blocks)
         else:
+            x.requires_grad_()
             x = EfficientMViTRevBackProp.apply(x, self.decode_blocks)
 
         return x

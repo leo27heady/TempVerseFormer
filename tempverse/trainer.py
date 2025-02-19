@@ -299,11 +299,8 @@ class Trainer():
         batch_size, images_count, c, w, h = images.shape
 
         images = rearrange(images, "b t c w h -> (b t) c w h")
-        z, encoder_output = self.vae_model.encode(images)
-        
+        decoder_output, encoder_output = self.vae_model(images)
         encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
-
-        decoder_output = self.vae_model.decode(z)
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
 
         recon_loss = self.recon_criterion(decoder_output, expected_images)
