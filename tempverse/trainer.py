@@ -42,7 +42,7 @@ class Trainer():
         self.training_config = training_config
 
         self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM | None = model
-        self.vae_model: VAE = vae_model
+        self.vae_model: VAE | Reversible_MViT_VAE = vae_model
 
         match self.training_config.train_type:
             case TrainTypes.DEFAULT:
@@ -259,9 +259,9 @@ class Trainer():
 
         batch_size, context_size, c, w, h = input_images.shape
 
-        z, encoder_output = self.vae_model.encode(rearrange(input_images, "b t c w h -> (b t) c w h"))
+        z, encoder_output = self.vae_model.encoder(rearrange(input_images, "b t c w h -> (b t) c w h"))
         encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-        t0_decoder_output = self.vae_model.decode(z)
+        t0_decoder_output = self.vae_model.decoder(z)
         
         t0_decoder_output = rearrange(t0_decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         
@@ -269,7 +269,7 @@ class Trainer():
         y_pred = self.model(z, time_to_pred)
 
         decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
-        decoder_output = self.vae_model.decode(decoder_input)
+        decoder_output = self.vae_model.decoder(decoder_input)
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         # decoder_output = decoder_output[:, -time_to_pred:]
 
@@ -294,7 +294,7 @@ class Trainer():
 
         return loss, decoder_output
     
-    def train_vae_only(self, images, expected_images):
+    def train_vae_only(self, images):
 
         batch_size, images_count, c, w, h = images.shape
 
@@ -303,7 +303,7 @@ class Trainer():
         encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
 
-        recon_loss = self.recon_criterion(decoder_output, expected_images)
+        recon_loss = self.recon_criterion(decoder_output, images)
         self.buffer['vae_recon_losses'].append(recon_loss.item())
 
         kl_loss = self.calculate_full_kl_loss(encoder_output)
@@ -311,7 +311,7 @@ class Trainer():
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
             rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
-            rearrange(expected_images, "b t c w h -> (b t) c w h")
+            rearrange(images, "b t c w h -> (b t) c w h")
         ))
         self.buffer['perceptual_losses'].append(lpips_loss.item())
         
