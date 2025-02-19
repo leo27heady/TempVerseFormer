@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from .reversible import ReversibleModule, NotReversibleModule
+from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevBackProp
 from .block import MultiScaleBlock
 from .rev_block import ReversibleMultiScaleBlock
-from .rev_back_prop import EfficientMViTRevBackProp
 from ..config import ReversibleVaeConfig
 
 
@@ -156,6 +155,6 @@ class Rev_MViT_Decoder(nn.Module):
             x = Rev_MViT_Decoder.vanilla_backward(x, self.decode_blocks)
         else:
             x.requires_grad_()
-            x = EfficientMViTRevBackProp.apply(x, self.decode_blocks)
+            x = EfficientRevBackProp.apply(x, self.decode_blocks)
 
         return x

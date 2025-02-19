@@ -4,7 +4,7 @@ from torch.autograd import Function as Function
 from einops import rearrange
 
 from .block import ReversibleBlock
-from ..rev_back_prop import RevBackProp
+from ..rev_back_prop import EfficientRevBackProp
 from ..config import ReverseTransformerConfig
 
 
@@ -95,7 +95,7 @@ class RevFormer(nn.Module):
         if not self.training or not self.custom_backward:
             executing_fn = RevFormer.vanilla_backward
         else:
-            executing_fn = RevBackProp.apply
+            executing_fn = EfficientRevBackProp.apply
 
         # This takes care of switching between vanilla backprop and rev backprop
         if t > 0:

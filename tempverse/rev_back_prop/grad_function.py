@@ -1,10 +1,10 @@
 import torch
 from torch.autograd import Function
 
-from .reversible import ReversibleModule, NotReversibleModule
+from .modules import ReversibleModule, NotReversibleModule
 
 
-class EfficientMViTRevBackProp(Function):
+class EfficientRevBackProp(Function):
 
     """
     Custom Backpropagation function to allow (A) flushing memory in forward
@@ -30,9 +30,12 @@ class EfficientMViTRevBackProp(Function):
             for module in modules:
                 if isinstance(module, ReversibleModule):
                     is_prev_reversible = True
-                elif isinstance(module, NotReversibleModule) and is_prev_reversible:
-                    is_prev_reversible = False
-                    all_tensors.append(x.detach())
+                elif isinstance(module, NotReversibleModule):
+                    if is_prev_reversible:
+                        is_prev_reversible = False
+                        all_tensors.append(x.detach())
+                else:
+                    raise ValueError("Only instances of `ReversibleModule` and `NotReversibleModule` can be part of the grad function!")
 
                 x = module(x)
             

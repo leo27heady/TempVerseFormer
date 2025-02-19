@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
-from .reversible import ReversibleModule
+from ..rev_back_prop import ReversibleModule
 from .ms_attention import MultiScaleAttention
 
 

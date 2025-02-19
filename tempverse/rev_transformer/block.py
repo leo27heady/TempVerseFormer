@@ -3,6 +3,8 @@ from torch import nn
 from torch.autograd import Function as Function
 from torch.nn import MultiheadAttention as MHA
 
+from ..rev_back_prop import ReversibleModule
+
 
 class MLPSubblock(nn.Module):
     """
@@ -72,7 +74,7 @@ class AttentionSubBlock(nn.Module):
             return out
 
 
-class ReversibleBlock(nn.Module):
+class ReversibleBlock(ReversibleModule):
     """
     Reversible Blocks for Reversible Vision Transformer.
     See Section 3.3.2 in paper "Reversible Vision Transformers" for details.
