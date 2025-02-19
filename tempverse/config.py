@@ -191,7 +191,7 @@ if __name__ == "__main__":
                 ),
                 training=TrainingConfig(
                     train_type=TrainTypes.VAE_ONLY,
-                    grad_calc_way=GradientCalculationWays.VANILLA_BP,
+                    grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
                 ),
             )
         ]

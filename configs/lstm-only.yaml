@@ -39,6 +39,7 @@ group:
     residual_pooling: true
     use_abs_pos: false
     use_rel_pos: true
+    z_channels: 256
   training: {grad_calc_way: TEMP_VERSE_FORMER, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 25000, train_type: TEMP_ONLY, weight_decay: 0.0}
   vae:
     attn_down: [false, false, false, true, true, true]
@@ -92,6 +93,7 @@ group:
     residual_pooling: true
     use_abs_pos: false
     use_rel_pos: true
+    z_channels: 256
   training: {grad_calc_way: TEMP_VERSE_FORMER, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 25000, train_type: TEMP_ONLY, weight_decay: 0.0}
   vae:
     attn_down: [false, false, false, true, true, true]
