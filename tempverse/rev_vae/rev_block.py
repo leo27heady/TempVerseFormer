@@ -103,6 +103,12 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         return x_out
 
     def forward(self, x):
+        """
+        forward pass equations:
+        O_2 = I_2 + Attention(I_1), F = Attention
+        O_1 = I_1 + MLP(O_2), G = MLP
+        """
+
         I_1, I_2 = torch.chunk(x, 2, dim=-1)
 
         self.seed_cuda("attn")
@@ -127,8 +133,8 @@ class ReversibleMultiScaleBlock(ReversibleModule):
     def backward_pass(self, y, dy):
         """
         equations for recovering activations:
-        I1 = O1 - MLP(O2)
-        I2 = O2 - Attention(I1)
+        I_1 = O_1 - MLP(O_2), G = MLP
+        I_2 = O_2 - Attention(I_1), F = Attention
         """
         
         O_1, O_2 = torch.chunk(y, 2, dim=-1)
@@ -139,46 +145,70 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         with torch.enable_grad():
             O_2.requires_grad = True
 
+            # reconstructing the intermediate activations
+            # and the computational graph for F.
             self.seed_cuda("mlp")
             g_out = self.G(O_2)
 
             self.seed_cuda("droppath")
             g_out = self.drop_path(g_out)
 
+            # using pytorch native logic to differentiate through
+            # gradients in G in backward pass.
             g_out.backward(dY_1, retain_graph=True)
 
         # activation recomputation is by design and not part of
-        # the computation graph in forward pass.
+        # the computation graph in forward pass. Hence they do not
+        # need to record it in the computation graph.
         with torch.no_grad():
+            # recomputing I_1 from the rev equation
             I_1 = O_1 - g_out
+
+            # free memory since g_out is now not needed
             del g_out
 
+            # the gradients for the previous block
+            # note that it is called dY_2 but it in fact dI_2 in math.
+            # reusing same variable to save memory
             dY_2 = dY_2 + O_2.grad
+
+            # free memory since O_2.grad is now not needed
             O_2.grad = None
 
         # record F activations and calc gradients on F
         with torch.enable_grad():
             I_1.requires_grad = True
 
+            # reconstructing the intermediate activations
+            # and the computational graph for F.
             self.seed_cuda("attn")
             f_out = self.F(I_1)
 
             self.seed_cuda("droppath")
             f_out = self.drop_path(f_out)
 
+            # using pytorch native logic to differentiate through
+            # gradients in G in backward pass.
             f_out.backward(dY_2, retain_graph=True)
 
         # propagate reverse computed activations at the start of
         # the previous block for backprop.s
         with torch.no_grad():
+            # recomputing I_2 from the rev equation
             I_2 = O_2 - f_out
 
             del f_out, O_2
+            # the gradients for the previous block
+            # note that it is called dY_1 but it in fact dI_1 in math.
+            # reusing same variable to save memory
             dY_1 = dY_1 + I_1.grad
-
+            
+            # free memory since I_1.grad is now not needed
             I_1.grad = None
+
             I_1 = I_1.detach()
 
+        # et voila~
         return torch.cat([I_1, I_2], dim=-1), torch.cat([dY_1, dY_2], dim=-1)
 
     def backward_pass_recover(self, Y_1, Y_2):

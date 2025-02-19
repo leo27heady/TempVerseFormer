@@ -17,6 +17,7 @@ class EfficientRevBackProp(Function):
     def forward(
         ctx,
         x,
+        t,
         modules,
     ):
         """
@@ -30,14 +31,15 @@ class EfficientRevBackProp(Function):
         is_prev_reversible = True
         all_tensors = []
         with torch.no_grad():
-            for module in modules:
-                if isinstance(module, ReversibleModule):
-                    is_prev_reversible = True
-                elif isinstance(module, NotReversibleModule) and is_prev_reversible:
-                    is_prev_reversible = False
-                    all_tensors.append(x.detach())
+            for i in range(t):
+                for module in modules:
+                    if isinstance(module, ReversibleModule):
+                        is_prev_reversible = True
+                    elif isinstance(module, NotReversibleModule) and is_prev_reversible:
+                        is_prev_reversible = False
+                        all_tensors.append(x.detach())
 
-                x = module(x)
+                    x = module(x)
             
             x = x.detach()
             if is_prev_reversible:
@@ -47,6 +49,7 @@ class EfficientRevBackProp(Function):
         # for backward pass, no intermediate activations are needed.
         ctx.save_for_backward(*all_tensors)
         ctx.modules = modules
+        ctx.t = t
         return x
 
     @staticmethod
@@ -58,13 +61,18 @@ class EfficientRevBackProp(Function):
         """
 
         # retrieve the saved activations, to start rev recomputation
-        saved_tensors = list(ctx.saved_tensors) + [None]
-        x = None
+        saved_tensors = list(ctx.saved_tensors)
         modules = ctx.modules
+        t = ctx.t
+        
+        # if the last layer is not reversible that means the the last saved activation not right at the end
+        if isinstance(modules[-1], NotReversibleModule):
+            saved_tensors.append(None)
+
+        x = saved_tensors[-1]
 
         def propagate_non_reversible(x, dx, accumulated_non_reversible):
-            del x
-            del saved_tensors[-1]
+            del x, saved_tensors[-1]
             x = saved_tensors[-1]
             future_x = x
 
@@ -85,21 +93,21 @@ class EfficientRevBackProp(Function):
             return x, out_dx
 
         accumulated_non_reversible: list[int] = []
-        for index in reversed(range(len(modules))):
-            module = modules[index]
-            if isinstance(module, NotReversibleModule):
-                accumulated_non_reversible.append(index)
-            elif isinstance(module, ReversibleModule):
-                if accumulated_non_reversible:
-                    x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
-                
-                # this is recomputing both the activations and the gradients wrt those activations.
-                x, dx = module.backward_pass(y=x, dy=dx)
+        for i in range(t):
+            for index in reversed(range(len(modules))):
+                module = modules[index]
+                if isinstance(module, NotReversibleModule):
+                    accumulated_non_reversible.append(index)
+                elif isinstance(module, ReversibleModule):
+                    if accumulated_non_reversible:
+                        x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
+                    
+                    # this is recomputing both the activations and the gradients wrt those activations.
+                    x, dx = module.backward_pass(y=x, dy=dx)
         
-        if accumulated_non_reversible:
-            x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
+            if accumulated_non_reversible:
+                x, dx = propagate_non_reversible(x, dx, accumulated_non_reversible)
 
-        del x
-        del saved_tensors[-1]
+        del x, saved_tensors[-1]
 
-        return dx, None, None
+        return dx, None, None, None
