@@ -55,7 +55,7 @@ class AttentionSubBlock(nn.Module):
         super().__init__()
         self.norm = nn.LayerNorm(dim, eps=1e-6, elementwise_affine=True)
 
-        # using vanilla attention for simplicity. To support adanced attention
+        # using vanilla attention for simplicity. To support advanced attention
         # module see pyslowfast.
         # Note that the complexity of the attention module is not a concern
         # since it is used blackbox as F block in the reversible logic and
@@ -80,14 +80,17 @@ class ReversibleBlock(ReversibleModule):
     See Section 3.3.2 in paper "Reversible Vision Transformers" for details.
     """
 
-    def __init__(self, dim, num_heads, enable_amp):
+    def __init__(self, dim, num_heads, custom_backward, enable_amp):
         """
         Block is composed entirely of function F (Attention
         sub-block) and G (MLP sub-block) including layernorm.
         """
         super().__init__()
+        
+        self.custom_backward = custom_backward
+
         # F and G can be arbitrary functions, here they use
-        # simple attwntion and MLP sub-blocks using vanilla attention.
+        # simple attention and MLP sub-blocks using vanilla attention.
         self.F = AttentionSubBlock(
             dim=dim, num_heads=num_heads, enable_amp=enable_amp
         )

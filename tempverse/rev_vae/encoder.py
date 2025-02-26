@@ -9,6 +9,7 @@ from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevB
 from .block import MultiScaleBlock
 from .rev_block import ReversibleMultiScaleBlock
 from ..config import ReversibleVaeConfig
+from ..utils import BaseLogger
 
 
 class PatchEmbed(NotReversibleModule):
@@ -23,6 +24,7 @@ class PatchEmbed(NotReversibleModule):
         padding=(0, 0),
         im_channels=3,
         embed_dim=8,
+        custom_backward=True,
         enable_amp=False
     ):
         """
@@ -33,8 +35,10 @@ class PatchEmbed(NotReversibleModule):
             im_channels (int): Number of input image channels.
             embed_dim (int):  embed_dim (int): Patch embedding dimension.
         """
+        
         super().__init__()
 
+        self.custom_backward = custom_backward
         self.enable_amp = enable_amp
         self.proj = nn.Conv2d(
             im_channels,
@@ -65,27 +69,29 @@ class PreQuantModule(NotReversibleModule):
     def __init__(
         self,
         norm_channels=8,
-        in_dim=256,
-        out_dim=1024,
+        in_dim=1024,
+        z_channels=256,
+        custom_backward=True,
         enable_amp=False
     ):
         super().__init__()
 
+        self.custom_backward = custom_backward
         self.enable_amp = enable_amp
-        self.encoder_norm_out = nn.GroupNorm(norm_channels, in_dim)
+
+        self.norm_1 = nn.LayerNorm(in_dim)
+        self.conv_out = nn.Conv2d(in_dim, z_channels * 2, kernel_size=1)
         self.act_layer = nn.GELU()
-        self.encoder_conv_out = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
         # Latent Dimension is 2*Latent because they are predicting mean & variance
-        self.pre_quant_conv = nn.Conv2d(out_dim, out_dim, kernel_size=1)
+        self.pre_quant_conv = nn.Conv2d(z_channels * 2, z_channels * 2, kernel_size=1)
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("pre_quant")
 
+            x = self.norm_1(x)
             x = rearrange(x, "B H W C -> B C H W")
-            x = self.encoder_norm_out(x)
-            x = self.act_layer(x)
-            x = self.encoder_conv_out(x)
+            x = self.act_layer(self.conv_out(x))
             x = self.pre_quant_conv(x)
         
         return x
@@ -101,26 +107,21 @@ class SamplingModule(NotReversibleModule):
 
     def __init__(
         self,
+        custom_backward=True,
         enable_amp=False
     ):
         super().__init__()
 
+        self.custom_backward = custom_backward
         self.enable_amp = enable_amp
-
-    def sample_output(self, out):
-        mean, logvar = torch.chunk(out, 2, dim=1)
-        std = torch.exp(0.5 * logvar)
-        sample = mean + std * torch.randn_like(mean)
-        return sample
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("sample")
-            
-            O1, O2 = torch.chunk(x, 2, dim=1)
-            o1_sample = self.sample_output(O1)
-            o2_sample = self.sample_output(O2)
-            sample = torch.cat([o1_sample, o2_sample], dim=1)
+
+            mean, logvar = torch.chunk(x, 2, dim=1)
+            std = torch.exp(0.5 * logvar)
+            sample = mean + std * torch.randn_like(mean)
         
         return sample
 
@@ -142,6 +143,8 @@ class Rev_MViT_Encoder(nn.Module):
         custom_backward: bool = True,
     ):
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
 
         self.custom_backward = custom_backward
         
@@ -153,7 +156,8 @@ class Rev_MViT_Encoder(nn.Module):
             padding=config.patch_padding,
             im_channels=im_channels,
             embed_dim=config.patch_embed_dim,
-            enable_amp=enable_amp
+            custom_backward=custom_backward,
+            enable_amp=enable_amp,
         ))
         embed_dim = config.patch_embed_dim
 
@@ -172,10 +176,9 @@ class Rev_MViT_Encoder(nn.Module):
 
             if is_last_stage_block:
                 dim_out *= 2
-                num_heads = min(16, num_heads*2)
 
             # hybrid window attention: global attention in last stages.
-            window_size_ = 0 if stage != 1 else input_size[0] // 4
+            window_size_ = input_size[0] // 4
 
             block_type = MultiScaleBlock if is_last_stage_block else ReversibleMultiScaleBlock
 
@@ -195,24 +198,34 @@ class Rev_MViT_Encoder(nn.Module):
                 use_rel_pos=config.use_rel_pos,
                 rel_pos_zero_init=config.rel_pos_zero_init,
                 input_size=input_size,
+                custom_backward=custom_backward,
                 enable_amp=enable_amp,
             ))
 
             if is_last_stage_block:
                 embed_dim = dim_out
+                num_heads = min(16, num_heads*2)
                 input_size = [s // 2 for s in input_size]
                 assert 0 not in input_size
                 stage += 1
         
         assert 1 in input_size
         
-        self.encode_blocks.append(PreQuantModule(config.norm_channels, embed_dim, 4 * config.z_channels, enable_amp))
+        self.encode_blocks.append(PreQuantModule(
+            norm_channels=config.norm_channels, 
+            in_dim=embed_dim, 
+            z_channels=config.z_channels, 
+            custom_backward=custom_backward,
+            enable_amp=enable_amp,
+        ))
 
-        self.sampling = SamplingModule(enable_amp)
-
+        self.sampling = nn.ModuleList([SamplingModule(
+            custom_backward=custom_backward,
+            enable_amp=enable_amp
+        )])
 
     @staticmethod
-    def vanilla_backward(x, modules):
+    def vanilla_backward(x, t, modules):
         """
         Using rev layers without rev backward propagation. Debugging purposes only.
         Deactivated with self.custom_backward.
@@ -223,11 +236,14 @@ class Rev_MViT_Encoder(nn.Module):
 
     def forward(self, x):
         if not self.training or not self.custom_backward:
-            x = Rev_MViT_Encoder.vanilla_backward(x, self.encode_blocks)
+            self.logger.debug("Start Rev_MViT_Encoder vanilla_backward")
+            executing_fn = Rev_MViT_Encoder.vanilla_backward
         else:
+            self.logger.debug("Start Rev_MViT_Encoder EfficientRevBackProp")
             x.requires_grad_()
-            x = EfficientRevBackProp.apply(x, 1, self.encode_blocks)
+            executing_fn = EfficientRevBackProp.apply
         
-        sample = self.sampling(x)
+        x = executing_fn(x, 1, self.encode_blocks)
+        sample = executing_fn(x, 1, self.sampling)
 
         return sample, x

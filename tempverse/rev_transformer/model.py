@@ -10,7 +10,7 @@ from ..config import ReverseTransformerConfig
 
 class InputProjectionModule(NotReversibleModule):
     """
-    Image to Patch Embedding.
+    VAE latent to Transformer Embedding.
     """
 
     def __init__(
@@ -18,30 +18,70 @@ class InputProjectionModule(NotReversibleModule):
         input_dim=256,
         embed_dim=768,
         context_size=18,
+        custom_backward=True,
         enable_amp=False
     ):
-        """
-        Args:
-            kernel_size (Tuple): kernel size of the projection layer.
-            stride (Tuple): stride of the projection layer.
-            padding (Tuple): padding size of the projection layer.
-            im_channels (int): Number of input image channels.
-            embed_dim (int):  embed_dim (int): Patch embedding dimension.
-        """
         super().__init__()
 
+        self.custom_backward = custom_backward
         self.enable_amp = enable_amp
-        # self.input_projection = nn.Linear(input_dim*2, embed_dim*2, bias=True)
+        self.in_projection = nn.Linear(input_dim, embed_dim, bias=True)
         self.pos_embeddings = nn.Parameter(
-            torch.zeros(1, context_size, embed_dim*2)
+            torch.zeros(1, context_size, embed_dim)
+        )
+
+    def forward(self, x):
+        with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            self.seed_cuda("projection")
+            x = rearrange(
+                x, 'b n c (nh ph) (nw pw) -> b (n nh nw) (ph pw c)',
+                ph=1,
+                pw=1
+            )
+            x = self.in_projection(x)
+            x = x + self.pos_embeddings
+            x = torch.cat([x, x], dim=-1)
+        return x
+
+    def forward_for_backward(self, x):
+        return self.forward(x)
+
+
+class OutputProjectionModule(NotReversibleModule):
+    """
+    Transformer Embedding to VAE latent.
+    """
+
+    def __init__(
+        self,
+        input_dim=256,
+        embed_dim=768,
+        custom_backward=True,
+        enable_amp=False
+    ):
+        super().__init__()
+
+        self.custom_backward = custom_backward
+        self.enable_amp = enable_amp
+
+        self.norm = nn.LayerNorm(2 * embed_dim)
+        self.term_fusion = nn.Sequential(
+            nn.Linear(2 * embed_dim, 2 * embed_dim, bias=True),
+            nn.Linear(2 * embed_dim, input_dim, bias=True)
         )
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("projection")
             
-            # x = self.input_projection(x)
-            x = x + self.pos_embeddings
+            x = self.term_fusion(self.norm(x))
+            x = rearrange(
+                x, 'b (n nh nw) (ph pw c) -> b n c (nh ph) (nw pw)',
+                ph=1,
+                pw=1,
+                nw=1,
+                nh=1
+            )
         return x
 
     def forward_for_backward(self, x):
@@ -63,8 +103,6 @@ class RevFormer(nn.Module):
         self.n_head = config.n_head
         self.depth = config.depth
 
-        # self.input_projection = nn.Linear(self.input_dim, self.embed_dim, bias=True)
-
         # Reversible blocks can be treated same as vanilla blocks,
         # any special treatment needed for reversible backpropagation
         # is constrained inside the block code and not exposed.
@@ -74,6 +112,7 @@ class RevFormer(nn.Module):
             input_dim=self.input_dim,
             embed_dim=self.embed_dim,
             context_size=context_size,
+            custom_backward=custom_backward,
             enable_amp=enable_amp
         ))
 
@@ -81,17 +120,19 @@ class RevFormer(nn.Module):
             self.layers.append(ReversibleBlock(
                 dim=self.embed_dim,
                 num_heads=self.n_head,
+            custom_backward=custom_backward,
                 enable_amp=enable_amp,
             ))
 
+        self.layers.append(OutputProjectionModule(
+            input_dim=self.input_dim,
+            embed_dim=self.embed_dim,
+            custom_backward=custom_backward,
+            enable_amp=enable_amp
+        ))
+
         # Boolean to switch between vanilla backprop and rev backprop
         self.custom_backward = custom_backward
-
-        # self.norm = nn.LayerNorm(2 * self.embed_dim)
-        # self.term_fusion = nn.Sequential(
-        #     nn.Linear(2 * self.embed_dim, 2 * self.embed_dim, bias=True),
-        #     nn.Linear(2 * self.embed_dim, self.input_dim, bias=True)
-        # )
 
     @staticmethod
     def vanilla_backward(x, t, layers):
@@ -105,12 +146,6 @@ class RevFormer(nn.Module):
         return x
 
     def forward(self, x, t):
-        
-        x = rearrange(
-            x, 'b n c (nh ph) (nw pw) -> b (n nh nw) (ph pw c)',
-            ph=1,
-            pw=1
-        )
 
         # no need for custom backprop in eval/inference phase
         if not self.training or not self.custom_backward:
@@ -120,17 +155,6 @@ class RevFormer(nn.Module):
 
         # This takes care of switching between vanilla backprop and rev backprop
         if t > 0: x = executing_fn(x, t, self.layers)
-
-        # termination fusion
-        # x = self.term_fusion(self.norm(x))
-        
-        x = rearrange(
-            x, 'b (n nh nw) (ph pw c) -> b n c (nh ph) (nw pw)',
-            ph=1,
-            pw=1,
-            nw=1,
-            nh=1
-        )
 
         return x
 

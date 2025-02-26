@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from timm.models.layers import trunc_normal_
 
+from tempverse.utils import BaseLogger
 from .utils import (
     attention_pool,
     add_decomposed_rel_pos,
@@ -47,7 +48,11 @@ class MultiScaleAttention(nn.Module):
             rel_pos_zero_init (bool): If True, zero initialize relative positional parameters.
             input_size (int or None): Input resolution.
         """
+        
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
+        
         self.num_heads = num_heads
         head_dim = dim_out // num_heads
         self.scale = head_dim**-0.5
@@ -142,6 +147,7 @@ class MultiScaleAttention(nn.Module):
         q = q.view(q.shape[0], np.prod(q_hw), -1)
         k = k.view(k.shape[0], np.prod(kv_hw), -1)
         v = v.view(v.shape[0], np.prod(kv_hw), -1)
+        self.logger.debug(f"window_size={self.window_size}, num_heads={self.num_heads}; q={q.shape}, k={k.shape}, v={v.shape}")
 
         attn = (q * self.scale) @ k.transpose(-2, -1)
 

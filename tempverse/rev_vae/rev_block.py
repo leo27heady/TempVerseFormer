@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
+from tempverse.utils import BaseLogger
 from ..rev_back_prop import ReversibleModule
 from .ms_attention import MultiScaleAttention
 
@@ -28,6 +29,7 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         use_rel_pos=False,
         rel_pos_zero_init=True,
         input_size=None,
+        custom_backward=True,
         enable_amp=False,
     ):
         """
@@ -54,6 +56,11 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         """
 
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
+
+        self.custom_backward = custom_backward
+        self.enable_amp = enable_amp
 
         self.norm1 = norm_layer(dim)
         self.attn = MultiScaleAttention(
@@ -83,7 +90,6 @@ class ReversibleMultiScaleBlock(ReversibleModule):
             out_features=dim_out,
             act_layer=act_layer,
         )
-        self.enable_amp = enable_amp
 
         if stride_q > 1:
             raise ValueError(
@@ -108,11 +114,15 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         O_2 = I_2 + Attention(I_1), F = Attention
         O_1 = I_1 + MLP(O_2), G = MLP
         """
+        
+        self.logger.debug("Start ReversibleMultiScaleBlock forward")
 
         I_1, I_2 = torch.chunk(x, 2, dim=-1)
 
+        self.logger.debug(f"Pre Attention: {I_1.shape}")
         self.seed_cuda("attn")
         f_out = self.F(I_1)
+        self.logger.debug(f"Post Attention: {f_out.shape}")
 
         self.seed_cuda("droppath")
         O_2 = I_2 + self.drop_path(f_out)
@@ -120,10 +130,12 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         # free memory
         del I_2
 
+        self.logger.debug(f"Pre MLP: {O_2.shape}")
         self.seed_cuda("mlp")
         g_out = self.G(O_2)
+        self.logger.debug(f"Pre Attention: {g_out.shape}")
 
-        torch.manual_seed(self.seeds["droppath"])
+        self.seed_cuda("droppath", safe=True)
         O_1 = I_1 + self.drop_path(g_out)
 
         del I_1
@@ -136,6 +148,8 @@ class ReversibleMultiScaleBlock(ReversibleModule):
         I_1 = O_1 - MLP(O_2), G = MLP
         I_2 = O_2 - Attention(I_1), F = Attention
         """
+        
+        self.logger.debug("Start ReversibleMultiScaleBlock backward")
         
         O_1, O_2 = torch.chunk(y, 2, dim=-1)
         dY_1, dY_2 = torch.chunk(dy, 2, dim=-1)
@@ -150,7 +164,7 @@ class ReversibleMultiScaleBlock(ReversibleModule):
             self.seed_cuda("mlp")
             g_out = self.G(O_2)
 
-            self.seed_cuda("droppath")
+            self.seed_cuda("droppath", safe=True)
             g_out = self.drop_path(g_out)
 
             # using pytorch native logic to differentiate through

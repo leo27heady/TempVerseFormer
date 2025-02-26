@@ -9,7 +9,33 @@ from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevB
 from .block import MultiScaleBlock
 from .rev_block import ReversibleMultiScaleBlock
 from ..config import ReversibleVaeConfig
+from ..utils import BaseLogger
 
+
+class PostQuantModule(NotReversibleModule):
+    """
+    Postquant module
+    """
+
+    def __init__(
+        self,
+        custom_backward=True,
+        enable_amp=False
+    ):
+        super().__init__()
+
+        self.custom_backward = custom_backward
+        self.enable_amp = enable_amp
+
+    def forward(self, x):
+        with torch.amp.autocast("cuda", enabled=self.enable_amp):
+            self.seed_cuda("post_quant")
+            x = rearrange(x, "B C H W -> B H W C")
+            x = torch.cat([x, x], dim=-1)
+        return x
+
+    def forward_for_backward(self, x):
+        return self.forward(x)
 
 
 class UnpatchEmbed(NotReversibleModule):
@@ -25,6 +51,7 @@ class UnpatchEmbed(NotReversibleModule):
         norm_channels=8,
         embed_dim=768,
         im_channels=3,
+        custom_backward=True,
         enable_amp=False
     ):
         """
@@ -37,8 +64,9 @@ class UnpatchEmbed(NotReversibleModule):
         """
         super().__init__()
 
+        self.custom_backward = custom_backward
         self.enable_amp = enable_amp
-        self.norm_out = nn.GroupNorm(norm_channels, embed_dim)
+        self.norm_out = nn.LayerNorm(embed_dim)
         self.non_linearity = nn.GELU()
         self.proj = nn.Conv2d(
             embed_dim,
@@ -52,8 +80,8 @@ class UnpatchEmbed(NotReversibleModule):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("unpatch")
 
-            x = rearrange(x, "B H W C -> B C H W")
             x = self.norm_out(x)
+            x = rearrange(x, "B H W C -> B C H W")
             x = self.non_linearity(x)
             x = self.proj(x)
         return x
@@ -76,6 +104,8 @@ class Rev_MViT_Decoder(nn.Module):
         custom_backward: bool = True,
     ):
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
 
         self.custom_backward = custom_backward
 
@@ -89,11 +119,16 @@ class Rev_MViT_Decoder(nn.Module):
         is_first_stage_block = True
         
         self.decode_blocks = nn.ModuleList()
+        self.decode_blocks.append(PostQuantModule(
+            custom_backward=custom_backward,
+            enable_amp=enable_amp
+        ))
+
         for block_number in range(1, decoder_depth + 1):
             is_last_stage_block = block_number % config.decoder_stage_size == 0 and stage <= config.decoder_stages
 
             # hybrid window attention: global attention in first stages.
-            window_size_ = 0 if stage <= config.decoder_stages - 3 else input_size[0] // 4
+            window_size_ = input_size[0] // 4
 
             block_type = MultiScaleBlock if is_first_stage_block else ReversibleMultiScaleBlock
             self.decode_blocks.append(block_type(
@@ -112,6 +147,7 @@ class Rev_MViT_Decoder(nn.Module):
                 use_rel_pos=config.use_rel_pos,
                 rel_pos_zero_init=config.rel_pos_zero_init,
                 input_size=input_size,
+                custom_backward=custom_backward,
                 enable_amp=enable_amp,
             ))
             
@@ -127,7 +163,7 @@ class Rev_MViT_Decoder(nn.Module):
                 is_first_stage_block = True
         
         assert img_size in input_size
-                
+
         self.decode_blocks.append(UnpatchEmbed(
             kernel_size=(3, 3),
             stride=(1, 1),
@@ -135,12 +171,12 @@ class Rev_MViT_Decoder(nn.Module):
             norm_channels=config.norm_channels,
             embed_dim=embed_dim*2,
             im_channels=im_channels,
+            custom_backward=custom_backward,
             enable_amp=enable_amp
         ))
 
-
     @staticmethod
-    def vanilla_backward(x, modules):
+    def vanilla_backward(x, t, modules):
         """
         Using rev layers without rev backward propagation. Debugging purposes only.
         Deactivated with self.custom_backward.
@@ -150,11 +186,14 @@ class Rev_MViT_Decoder(nn.Module):
         return x
 
     def forward(self, x):
-        x = rearrange(x, "B C H W -> B H W C")
         if not self.training or not self.custom_backward:
-            x = Rev_MViT_Decoder.vanilla_backward(x, self.decode_blocks)
+            self.logger.debug("Start Rev_MViT_Decoder vanilla_backward")
+            executing_fn = Rev_MViT_Decoder.vanilla_backward
         else:
+            self.logger.debug("Start Rev_MViT_Decoder EfficientRevBackProp")
             x.requires_grad_()
-            x = EfficientRevBackProp.apply(x, 1, self.decode_blocks)
+            executing_fn = EfficientRevBackProp.apply
+        
+        x = executing_fn(x, 1, self.decode_blocks)
 
         return x

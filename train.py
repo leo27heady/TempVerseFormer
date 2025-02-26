@@ -20,7 +20,7 @@ from tempverse.utils import BaseLogger, create_timestamp
 
 
 if __name__ == "__main__":
-    logger = BaseLogger(__file__)
+    logger = BaseLogger(__name__)
     load_dotenv()
 
     parser = argparse.ArgumentParser("Temporal Modeling on Simple Shapes Rotation")

@@ -38,7 +38,7 @@ class Trainer():
         verbose=True, save_dir=None
     ):
 
-        self.logger = BaseLogger(__file__)
+        self.logger = BaseLogger(__name__)
         self.training_config = training_config
 
         self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM | None = model
@@ -240,18 +240,8 @@ class Trainer():
             if step == self.training_config.steps:
                 break
     
-    def calculate_kl_loss(self, encoder_output):
-        mean, logvar = torch.chunk(encoder_output, 2, dim=2)
-        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3, 4]))
-        return kl_loss
-    
-    def calculate_full_kl_loss(self, encoder_output):
-        if isinstance(self.vae_model, Reversible_MViT_VAE):
-            O1, O2 = torch.chunk(encoder_output, 2, dim=2)
-            kl_loss = self.calculate_kl_loss(O1) + self.calculate_kl_loss(O2)
-        else:
-            kl_loss = self.calculate_kl_loss(encoder_output)
-
+    def calculate_kl_loss(self, mean, logvar):
+        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3]))
         self.buffer['kl_losses'].append(kl_loss.item())
         return kl_loss
     
@@ -259,9 +249,8 @@ class Trainer():
 
         batch_size, context_size, c, w, h = input_images.shape
 
-        z, encoder_output = self.vae_model.encoder(rearrange(input_images, "b t c w h -> (b t) c w h"))
-        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
-        t0_decoder_output = self.vae_model.decoder(z)
+        z, encoder_output = self.vae_model.encode(rearrange(input_images, "b t c w h -> (b t) c w h"))
+        t0_decoder_output = self.vae_model.decode(z)
         
         t0_decoder_output = rearrange(t0_decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         
@@ -269,7 +258,7 @@ class Trainer():
         y_pred = self.model(z, time_to_pred)
 
         decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
-        decoder_output = self.vae_model.decoder(decoder_input)
+        decoder_output = self.vae_model.decode(decoder_input)
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         # decoder_output = decoder_output[:, -time_to_pred:]
 
@@ -281,7 +270,7 @@ class Trainer():
 
         loss = recon_loss + vae_recon_loss
 
-        kl_loss = self.calculate_full_kl_loss(encoder_output)
+        kl_loss = self.calculate_kl_loss(encoder_output)
         loss += self.kl_weight * kl_loss
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
@@ -300,13 +289,12 @@ class Trainer():
 
         images = rearrange(images, "b t c w h -> (b t) c w h")
         decoder_output, encoder_output = self.vae_model(images)
-        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
 
         recon_loss = self.recon_criterion(decoder_output, images)
         self.buffer['vae_recon_losses'].append(recon_loss.item())
 
-        kl_loss = self.calculate_full_kl_loss(encoder_output)
+        kl_loss = self.calculate_kl_loss(encoder_output)
         loss = recon_loss + (self.kl_weight * kl_loss)
 
         lpips_loss = torch.mean(self.lpips_loss_fn(
@@ -325,10 +313,9 @@ class Trainer():
 
         images = rearrange(images, "b t c w h -> (b t) c w h")
         with torch.no_grad():
-            z, encoder_output = self.vae_model.encode(images)
+            z, _ = self.vae_model.encode(images)
         
         z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
-        encoder_output = rearrange(encoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         y_pred = self.model(z[:, :context_size], time_to_pred)
 
         loss = self.recon_criterion(y_pred, z[:, -context_size:])

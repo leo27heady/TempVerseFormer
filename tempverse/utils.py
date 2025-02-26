@@ -32,7 +32,7 @@ class BaseLogger(logging.Logger):
 
     def debug(self, msg: object, *args, **kwargs) -> None:
         if self.isEnabledFor(logging.DEBUG):
-            super().debug(logging.DEBUG, msg, args, extra=self.extra, **kwargs)
+            self._log(logging.DEBUG, msg, args, extra=self.extra, **kwargs)
 
     def warning(self, msg: object, *args, **kwargs) -> None:
         if self.isEnabledFor(logging.WARNING):

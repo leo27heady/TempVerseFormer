@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
+from tempverse.utils import BaseLogger
 from ..rev_back_prop import NotReversibleModule
 from .utils import attention_pool
 from .ms_attention import MultiScaleAttention
@@ -29,6 +30,7 @@ class MultiScaleBlock(NotReversibleModule):
         use_rel_pos=False,
         rel_pos_zero_init=True,
         input_size=None,
+        custom_backward=True,
         enable_amp=False,
     ):
         """
@@ -53,7 +55,13 @@ class MultiScaleBlock(NotReversibleModule):
             input_size (int or None): Input resolution.
             enable_amp (bool): If True, enable mixed precision training.
         """
+        
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
+
+        self.custom_backward = custom_backward
+        self.enable_amp = enable_amp
 
         self.norm1 = norm_layer(dim)
         self.attn = MultiScaleAttention(
@@ -84,7 +92,6 @@ class MultiScaleBlock(NotReversibleModule):
             out_features=dim_out,
             act_layer=act_layer,
         )
-        self.enable_amp = enable_amp
 
         # For Stage-Transition
         if dim != dim_out:
@@ -98,21 +105,32 @@ class MultiScaleBlock(NotReversibleModule):
             )
 
     def forward(self, x):
+        self.logger.debug("Start MultiScaleBlock forward")
+        
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("drop_path")
 
+            self.logger.debug(f"Pre Attention: {x.shape}")
             x_norm = self.norm1(x)
             x_block = self.attn(x_norm)
+            self.logger.debug(f"Post Attention: {x.shape}")
 
             if hasattr(self, "proj"):
+                self.logger.debug(f"Pre Projection: {x.shape}")
                 x = self.proj(x_norm)
+                self.logger.debug(f"Post Projection: {x.shape}")
             if hasattr(self, "pool_skip"):
+                self.logger.debug(f"Pre Pool: {x.shape}")
                 x = attention_pool(x, self.pool_skip)
+                self.logger.debug(f"Post Pool: {x.shape}")
 
+            self.logger.debug(f"Pre MLP: {x.shape}")
             x = x + self.drop_path(x_block)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
+            self.logger.debug(f"Post MLP: {x.shape}")
 
         return x
 
     def forward_for_backward(self, x):
+        self.logger.debug("Start MultiScaleBlock backward")
         return self.forward(x)

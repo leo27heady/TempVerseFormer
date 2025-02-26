@@ -79,7 +79,15 @@ class Reversible_MViT_VAE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, x):
+    def encode(self, x):
         z, encoder_output = self.encoder(x)
+        return z, encoder_output
+
+    def decode(self, z):
         out = self.decoder(z)
+        return out
+
+    def forward(self, x):
+        z, encoder_output = self.encode(x)
+        out = self.decode(z)
         return out, encoder_output
