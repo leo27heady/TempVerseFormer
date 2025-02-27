@@ -139,7 +139,7 @@ class Rev_MViT_Decoder(nn.Module):
         ))
 
         # decoder_dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, decoder_depth)]  # stochastic depth decay rule
-        num_heads = 16
+        num_heads = config.num_heads_decoder
         input_size = [1, 1]
 
         for stage in range(1, number_of_stages + 1):
