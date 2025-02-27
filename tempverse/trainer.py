@@ -155,7 +155,7 @@ class Trainer():
                 case TrainTypes.DEFAULT:
                     loss, decoder_output = self.train_default(input_images, expected_images, time_to_pred)
                 case TrainTypes.VAE_ONLY:
-                    loss, decoder_output = self.train_vae_only(images, expected_images)
+                    loss, decoder_output = self.train_vae_only(images)
                 case TrainTypes.TEMP_ONLY:
                     loss, temp_output = self.train_temp_only(images, context_size, time_to_pred)
             
@@ -240,7 +240,8 @@ class Trainer():
             if step == self.training_config.steps:
                 break
     
-    def calculate_kl_loss(self, mean, logvar):
+    def calculate_kl_loss(self, encoder_output):
+        mean, logvar = torch.chunk(encoder_output, 2, dim=1)
         kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3]))
         self.buffer['kl_losses'].append(kl_loss.item())
         return kl_loss
@@ -289,7 +290,6 @@ class Trainer():
 
         images = rearrange(images, "b t c w h -> (b t) c w h")
         decoder_output, encoder_output = self.vae_model(images)
-        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
 
         recon_loss = self.recon_criterion(decoder_output, images)
         self.buffer['vae_recon_losses'].append(recon_loss.item())
@@ -297,14 +297,12 @@ class Trainer():
         kl_loss = self.calculate_kl_loss(encoder_output)
         loss = recon_loss + (self.kl_weight * kl_loss)
 
-        lpips_loss = torch.mean(self.lpips_loss_fn(
-            rearrange(decoder_output, "b t c w h -> (b t) c w h"), 
-            rearrange(images, "b t c w h -> (b t) c w h")
-        ))
+        lpips_loss = torch.mean(self.lpips_loss_fn(decoder_output, images))
         self.buffer['perceptual_losses'].append(lpips_loss.item())
         
         loss += self.perceptual_weight * lpips_loss
 
+        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         return loss, decoder_output
 
     def train_temp_only(self, images, context_size, time_to_pred):
