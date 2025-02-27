@@ -75,25 +75,22 @@ class DataConfig(BaseModel):
 
 class ReversibleVaeConfig(BaseModel):
     z_channels: int = 256
-    encoder_stage_size: int = 4
-    encoder_stages: int = 5
-    encoder_jump_first_stage: bool = True
-    decoder_stage_size: int = 4
-    decoder_stages: int = 6
-    decoder_halt_final_stage: bool = True
-    patch_kernel: list[int] = [4, 4]
-    patch_stride: list[int] = [2, 2]
-    patch_padding: list[int] = [1, 1]
-    patch_embed_dim: int = 8
-    num_heads: int = 1
-    qkv_pool_kernel: list[int] = [4, 4]
+    down_channels: list[int] = [8, 16, 32, 64, 128, 256, 384]
+    attn_down: list[bool] = [False, False, True, True, True, True]
+    attn_up: list[bool] = [True, True, True, True, False, False]
+    down_scale_layers: int = 1
+    up_scale_layers: int = 1
+    norm_channels: int = 8
+    encoder_stage_size: int = 3
+    decoder_stage_size: int = 3
+    num_heads_encoder: int = 1
+    num_heads_decoder: int = 16
     adaptive_kv_stride: int = 4
     adaptive_window_size: int = 16
     residual_pooling: bool = True
     mlp_ratio: float = 4.0
     qkv_bias: bool = True
     drop_path_rate: float = 0.0
-    norm_channels: int = 8
     use_abs_pos: bool = False
     use_rel_pos: bool = True
     rel_pos_zero_init: bool = True

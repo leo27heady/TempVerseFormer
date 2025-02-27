@@ -12,7 +12,6 @@ class ReversibleMultiScaleBlock(ReversibleModule):
 
     def __init__(
         self,
-        type,
         dim,
         dim_out,
         num_heads,

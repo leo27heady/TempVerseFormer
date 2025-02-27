@@ -1,4 +1,4 @@
-# MViTv2 implementation taken from detectron2
+# Based on the MViTv2 implementation taken from detectron2
 # https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/mvit.py
 
 import torch
@@ -6,7 +6,7 @@ import torch.nn as nn
 from einops import rearrange
 
 from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevBackProp
-from .block import MultiScaleBlock
+from .res_net_block import ResNetUpBlock
 from .rev_block import ReversibleMultiScaleBlock
 from ..config import ReversibleVaeConfig
 from ..utils import BaseLogger
@@ -19,6 +19,8 @@ class PostQuantModule(NotReversibleModule):
 
     def __init__(
         self,
+        z_channels,
+        embed_dim,
         custom_backward=True,
         enable_amp=False
     ):
@@ -26,12 +28,16 @@ class PostQuantModule(NotReversibleModule):
 
         self.custom_backward = custom_backward
         self.enable_amp = enable_amp
+        
+        self.post_quant_conv = nn.Conv2d(z_channels, z_channels, kernel_size=1)
+        self.decoder_conv_in = nn.Conv2d(z_channels, embed_dim, kernel_size=3, padding=(1, 1))
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("post_quant")
+            x = self.post_quant_conv(x)
+            x = self.decoder_conv_in(x)
             x = rearrange(x, "B C H W -> B H W C")
-            x = torch.cat([x, x], dim=-1)
         return x
 
     def forward_for_backward(self, x):
@@ -45,10 +51,8 @@ class UnpatchEmbed(NotReversibleModule):
 
     def __init__(
         self,
-        kernel_size=(16, 16),
-        stride=(16, 16),
-        padding=(0, 0),
         norm_channels=8,
+        fuse_res_paths=True, 
         embed_dim=768,
         im_channels=3,
         custom_backward=True,
@@ -62,28 +66,37 @@ class UnpatchEmbed(NotReversibleModule):
             embed_dim (int):  embed_dim (int): Patch embedding dimension.
             im_channels (int): Number of input image channels.
         """
+
         super().__init__()
 
         self.custom_backward = custom_backward
         self.enable_amp = enable_amp
-        self.norm_out = nn.LayerNorm(embed_dim)
+        self.fuse_res_paths = fuse_res_paths
+
+        if self.fuse_res_paths:
+            self.res_paths_fusion = nn.Conv2d(embed_dim * 2, embed_dim, kernel_size=1)
+        
+        self.norm_out = nn.GroupNorm(norm_channels, embed_dim)
         self.non_linearity = nn.GELU()
-        self.proj = nn.Conv2d(
+        self.conv_out = nn.Conv2d(
             embed_dim,
             im_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            padding=(1, 1),
         )
 
     def forward(self, x):
         with torch.amp.autocast("cuda", enabled=self.enable_amp):
             self.seed_cuda("unpatch")
+            x = rearrange(x, "B H W C -> B C H W")
+            
+            if self.fuse_res_paths:
+                x = self.res_paths_fusion(x)
 
             x = self.norm_out(x)
-            x = rearrange(x, "B H W C -> B C H W")
             x = self.non_linearity(x)
-            x = self.proj(x)
+            x = self.conv_out(x)
         return x
 
     def forward_for_backward(self, x):
@@ -107,69 +120,68 @@ class Rev_MViT_Decoder(nn.Module):
         
         self.logger = BaseLogger(__name__)
 
-        self.custom_backward = custom_backward
+        up_channels = list(reversed(config.down_channels.copy()))
+        attn_up = [False] + config.attn_up.copy()  # insert False as the 1st entry always doesn't has path split
 
-        embed_dim = config.z_channels
-        dim_out = embed_dim
-        num_heads = 16
-        input_size = [1, 1]
-        decoder_depth = config.decoder_stage_size * config.decoder_stages - (config.decoder_stage_size - 1 if config.decoder_halt_final_stage else 0)
-        decoder_dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, decoder_depth)]  # stochastic depth decay rule
-        stage = 1
-        is_first_stage_block = True
+        number_of_stages: int = len(up_channels) - 1
+        assert number_of_stages > 1  # at least 2 stages
+        assert len(attn_up) == len(up_channels)  # channels and attentions lists have same lengths
+        assert config.decoder_stage_size >= 1  # if 1 only upsample remains
+
+        self.custom_backward = custom_backward
         
         self.decode_blocks = nn.ModuleList()
         self.decode_blocks.append(PostQuantModule(
+            z_channels=config.z_channels,
+            embed_dim=up_channels[0],
             custom_backward=custom_backward,
             enable_amp=enable_amp
         ))
 
-        for block_number in range(1, decoder_depth + 1):
-            is_last_stage_block = block_number % config.decoder_stage_size == 0 and stage <= config.decoder_stages
+        # decoder_dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, decoder_depth)]  # stochastic depth decay rule
+        num_heads = 16
+        input_size = [1, 1]
 
-            # hybrid window attention: global attention in first stages.
-            window_size_ = input_size[0] // 4
-
-            block_type = MultiScaleBlock if is_first_stage_block else ReversibleMultiScaleBlock
-            self.decode_blocks.append(block_type(
-                type="decode",
-                dim=embed_dim * 2 if is_first_stage_block else embed_dim,
-                dim_out=dim_out,
-                num_heads=num_heads,
-                mlp_ratio=config.mlp_ratio,
-                qkv_bias=config.qkv_bias,
-                drop_path=decoder_dpr[block_number - 1],
-                qkv_pool_kernel=config.qkv_pool_kernel if is_first_stage_block else (3, 3),
-                stride_q=(2 if is_first_stage_block else 1),
-                stride_kv=(2 if is_first_stage_block else 1),
-                window_size=window_size_,
-                residual_pooling=config.residual_pooling,
-                use_rel_pos=config.use_rel_pos,
-                rel_pos_zero_init=config.rel_pos_zero_init,
-                input_size=input_size,
+        for stage in range(1, number_of_stages + 1):
+            self.decode_blocks.append(ResNetUpBlock(
+                in_channels=up_channels[stage - 1], 
+                out_channels=up_channels[stage], 
+                norm_channels=config.norm_channels,
+                num_layers=config.up_scale_layers, 
+                fuse_res_paths=attn_up[stage - 1],  # fuse if previous stage has rev blocks
+                duplicate_output=attn_up[stage],  # duplicate if current stage has rev blocks
                 custom_backward=custom_backward,
                 enable_amp=enable_amp,
             ))
-            
-            if is_first_stage_block:
-                num_heads = num_heads // 2 or 1
-                embed_dim = embed_dim // 2
-                dim_out = dim_out // 2
-                input_size = [s * 2 for s in input_size]
-                stage += 1
-                is_first_stage_block = False
-            
-            if is_last_stage_block:
-                is_first_stage_block = True
+            input_size = [s * 2 for s in input_size]
+
+            for _ in (range(config.decoder_stage_size - 1) if attn_up[stage] else []):
+                self.decode_blocks.append(ReversibleMultiScaleBlock(
+                    dim=up_channels[stage],
+                    dim_out=up_channels[stage],
+                    num_heads=num_heads,
+                    mlp_ratio=config.mlp_ratio,
+                    qkv_bias=config.qkv_bias,
+                    drop_path=0.0,
+                    qkv_pool_kernel=(3, 3),
+                    stride_q=1,
+                    stride_kv=1,
+                    window_size=(input_size[0] // 4),  # TODO: hybrid window attention: global attention in first stages.
+                    residual_pooling=config.residual_pooling,
+                    use_rel_pos=config.use_rel_pos,
+                    rel_pos_zero_init=config.rel_pos_zero_init,
+                    input_size=input_size,
+                    custom_backward=custom_backward,
+                    enable_amp=enable_amp,
+                ))
+            num_heads = num_heads // 2 or 1
         
         assert img_size in input_size
 
         self.decode_blocks.append(UnpatchEmbed(
-            kernel_size=(3, 3),
-            stride=(1, 1),
-            padding=(1, 1),
             norm_channels=config.norm_channels,
-            embed_dim=embed_dim*2,
+            fuse_res_paths=attn_up[-1],  # fuse if last stage has rev blocks
+            embed_dim=up_channels[-1],
             im_channels=im_channels,
             custom_backward=custom_backward,
             enable_amp=enable_amp

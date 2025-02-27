@@ -1,6 +1,3 @@
-# MViTv2 implementation taken from detectron2
-# https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/mvit.py
-
 import torch
 import torch.nn as nn
 from timm.models.layers import trunc_normal_
@@ -68,16 +65,16 @@ class Reversible_MViT_VAE(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        if isinstance(m, nn.Linear):  # or isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
             trunc_normal_(m.weight, std=0.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-        elif isinstance(m, nn.GroupNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+        # elif isinstance(m, nn.GroupNorm):
+        #     nn.init.constant_(m.bias, 0)
+        #     nn.init.constant_(m.weight, 1.0)
 
     def encode(self, x):
         z, encoder_output = self.encoder(x)
