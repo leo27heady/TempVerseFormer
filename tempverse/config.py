@@ -83,8 +83,8 @@ class ReversibleVaeConfig(BaseModel):
     norm_channels: int = 8
     encoder_stage_size: int = 3
     decoder_stage_size: int = 3
-    num_heads_encoder: int = 1
-    num_heads_decoder: int = 16
+    num_heads_min: int = 1
+    num_heads_max: int = 16
     adaptive_kv_stride: int = 4
     adaptive_window_size: int = 16
     residual_pooling: bool = True

@@ -139,7 +139,7 @@ class Rev_MViT_Decoder(nn.Module):
         ))
 
         # decoder_dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, decoder_depth)]  # stochastic depth decay rule
-        num_heads = config.num_heads_decoder
+        num_heads = config.num_heads_max
         input_size = [1, 1]
 
         for stage in range(1, number_of_stages + 1):
@@ -174,7 +174,7 @@ class Rev_MViT_Decoder(nn.Module):
                     custom_backward=custom_backward,
                     enable_amp=enable_amp,
                 ))
-            num_heads = num_heads // 2 or 1
+            num_heads = max(num_heads // 2, config.num_heads_min)
         
         assert img_size in input_size
 

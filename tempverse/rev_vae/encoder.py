@@ -158,7 +158,7 @@ class Rev_MViT_Encoder(nn.Module):
         ))
 
         # encoder_dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, encoder_depth)]  # stochastic depth decay rule
-        num_heads = config.num_heads_encoder
+        num_heads = config.num_heads_min
         input_size = [img_size, img_size]
         # self._out_feature_strides = {}
         # self._out_feature_channels = {}
@@ -194,7 +194,7 @@ class Rev_MViT_Encoder(nn.Module):
                 custom_backward=custom_backward,
                 enable_amp=enable_amp,
             ))
-            num_heads = min(16, num_heads*2)
+            num_heads = min(num_heads * 2, config.num_heads_max)
             input_size = [s // 2 for s in input_size]
             assert 0 not in input_size
 
