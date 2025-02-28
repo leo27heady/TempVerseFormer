@@ -4,7 +4,7 @@ from timm.models.layers import trunc_normal_
 
 from .encoder import Rev_MViT_Encoder
 from .decoder import Rev_MViT_Decoder
-from ..config import ReversibleVaeConfig
+from ..config import ReversibleVaeConfig, GradientCalculationWays
 
 
 class Reversible_MViT_VAE(nn.Module):
@@ -18,7 +18,7 @@ class Reversible_MViT_VAE(nn.Module):
         img_size: int,
         config: ReversibleVaeConfig,
         enable_amp: bool = False,
-        custom_backward: bool = True,
+        grad_calc_way: GradientCalculationWays = GradientCalculationWays.REVERSE_CALCULATION,
     ):
         """
         Args:
@@ -49,8 +49,8 @@ class Reversible_MViT_VAE(nn.Module):
         
         super().__init__()
         
-        self.encoder = Rev_MViT_Encoder(im_channels, img_size, config, enable_amp, custom_backward)
-        self.decoder = Rev_MViT_Decoder(im_channels, img_size, config, enable_amp, custom_backward)
+        self.encoder = Rev_MViT_Encoder(im_channels, img_size, config, grad_calc_way, enable_amp)
+        self.decoder = Rev_MViT_Decoder(im_channels, img_size, config, grad_calc_way, enable_amp)
 
         self.use_fast_backprop = config.fast_backprop
 
@@ -61,7 +61,7 @@ class Reversible_MViT_VAE(nn.Module):
             # s1 = torch.cuda.Stream(device=torch.cuda.current_device())
             s2 = torch.cuda.Stream(device=torch.cuda.current_device())
 
-        self.custom_backward = custom_backward
+        self.grad_calc_way = grad_calc_way
         self.apply(self._init_weights)
 
     def _init_weights(self, m):

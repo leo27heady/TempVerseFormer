@@ -43,14 +43,14 @@ if __name__ == "__main__":
         for j in range(1, config.training.num_reps + 1):
             logger.info("{}/{} rep".format(j, config.training.num_reps))
 
-            is_efficient_memory = (config.training.grad_calc_way == GradientCalculationWays.REVERSE_CALCULATION)
+            is_not_efficient_memory = (config.training.grad_calc_way == GradientCalculationWays.VANILLA_BP)
             
             model = None
             if config.training.train_type != TrainTypes.VAE_ONLY:
                 match config.general.temp_model_type:
                     case TempModelTypes.REV_TRANSFORMER:
-                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, custom_backward=is_efficient_memory)
-                        logger.info(f"RevFormer model with{'' if is_efficient_memory else 'out'} efficient backward propagation successfully initialized")
+                        model = RevFormer(config.rev_transformer, context_size=config.data.context_size, grad_calc_way=config.training.grad_calc_way)
+                        logger.info(f"RevFormer model with{'out' if is_not_efficient_memory else ''} efficient backward propagation successfully initialized")
                     case TempModelTypes.VANILLA_TRANSFORMER:
                         model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
                         logger.info("VanillaTransformer model successfully initialized")
@@ -68,8 +68,8 @@ if __name__ == "__main__":
                     vae_model = VAE(im_channels=config.data.im_channels, config=config.vae).to(device)
                     logger.info(f"VAE model successfully initialized")
                 case VaeModelTypes.REV_VAE:
-                    vae_model = Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, custom_backward=is_efficient_memory).to(device)
-                    logger.info(f"Rev VAE model with{'' if is_efficient_memory else 'out'} efficient backward propagation successfully initialized")
+                    vae_model = Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, grad_calc_way=config.training.grad_calc_way).to(device)
+                    logger.info(f"Rev VAE model with{'out' if is_not_efficient_memory else ''} efficient backward propagation successfully initialized")
                 case _:
                     error = f"Unknown VAE Model Type: {config.general.vae_model_type}"
                     logger.error(error)

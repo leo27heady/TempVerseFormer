@@ -5,7 +5,8 @@ from einops import rearrange
 
 from .block import ReversibleBlock
 from ..rev_back_prop import NotReversibleModule, EfficientRevBackProp
-from ..config import ReverseTransformerConfig
+from ..config import ReverseTransformerConfig, GradientCalculationWays
+from ..utils import BaseLogger
 
 
 class InputProjectionModule(NotReversibleModule):
@@ -93,10 +94,12 @@ class RevFormer(nn.Module):
         self,
         config: ReverseTransformerConfig,
         context_size: int,
+        grad_calc_way: GradientCalculationWays = GradientCalculationWays.REVERSE_CALCULATION,
         enable_amp: bool = False,
-        custom_backward: bool = True,
     ):
         super().__init__()
+        
+        self.logger = BaseLogger(__name__)
 
         self.input_dim = config.input_dim
         self.embed_dim = config.embed_dim
@@ -108,31 +111,31 @@ class RevFormer(nn.Module):
         # is constrained inside the block code and not exposed.
         self.layers = nn.ModuleList()
 
-        self.layers.append(InputProjectionModule(
+        self.input_projection = nn.ModuleList([InputProjectionModule(
             input_dim=self.input_dim,
             embed_dim=self.embed_dim,
             context_size=context_size,
-            custom_backward=custom_backward,
+            custom_backward=grad_calc_way.is_custom_bp_for_not_reversible,
             enable_amp=enable_amp
-        ))
+        )])
 
         for _ in range(self.depth):
             self.layers.append(ReversibleBlock(
                 dim=self.embed_dim,
                 num_heads=self.n_head,
-            custom_backward=custom_backward,
+                custom_backward=grad_calc_way.is_custom_bp_for_reversible,
                 enable_amp=enable_amp,
             ))
 
-        self.layers.append(OutputProjectionModule(
+        self.output_projection = nn.ModuleList([OutputProjectionModule(
             input_dim=self.input_dim,
             embed_dim=self.embed_dim,
-            custom_backward=custom_backward,
+            custom_backward=grad_calc_way.is_custom_bp_for_not_reversible,
             enable_amp=enable_amp
-        ))
+        )])
 
-        # Boolean to switch between vanilla backprop and rev backprop
-        self.custom_backward = custom_backward
+        # Switch between vanilla backprop and rev backprop
+        self.grad_calc_way = grad_calc_way
 
     @staticmethod
     def vanilla_backward(x, t, layers):
@@ -146,16 +149,22 @@ class RevFormer(nn.Module):
         return x
 
     def forward(self, x, t):
-
-        # no need for custom backprop in eval/inference phase
-        if not self.training or not self.custom_backward:
-            executing_fn = RevFormer.vanilla_backward
-        else:
-            executing_fn = EfficientRevBackProp.apply
-
-        # This takes care of switching between vanilla backprop and rev backprop
-        if t > 0: x = executing_fn(x, t, self.layers)
-
+        match self.grad_calc_way:
+            case GradientCalculationWays.VANILLA_BP:
+                self.logger.debug("Start RevFormer VANILLA_BP")
+                x = self.vanilla_backward(x, 1, self.input_projection)
+                x = self.vanilla_backward(x, t, self.layers)
+                x = self.vanilla_backward(x, 1, self.output_projection)
+            case GradientCalculationWays.REVERSE_CALCULATION_FULL:
+                self.logger.debug("Start RevFormer REVERSE_CALCULATION_FULL")
+                x = EfficientRevBackProp.apply(x, 1, self.input_projection)
+                x = EfficientRevBackProp.apply(x, t, self.layers)
+                x = EfficientRevBackProp.apply(x, 1, self.output_projection)
+            case GradientCalculationWays.REVERSE_CALCULATION:
+                self.logger.debug("Start RevFormer REVERSE_CALCULATION")
+                x = self.vanilla_backward(x, 1, self.input_projection)
+                x = EfficientRevBackProp.apply(x, t, self.layers)
+                x = self.vanilla_backward(x, 1, self.output_projection)
         return x
 
 

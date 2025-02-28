@@ -8,7 +8,7 @@ from einops import rearrange
 from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevBackProp
 from .res_net_block import ResNetUpBlock
 from .rev_block import ReversibleMultiScaleBlock
-from ..config import ReversibleVaeConfig
+from ..config import ReversibleVaeConfig, GradientCalculationWays
 from ..utils import BaseLogger
 
 
@@ -113,8 +113,8 @@ class Rev_MViT_Decoder(nn.Module):
         im_channels: int,
         img_size: int,
         config: ReversibleVaeConfig,
+        grad_calc_way: GradientCalculationWays,
         enable_amp: bool = False,
-        custom_backward: bool = True,
     ):
         super().__init__()
         
@@ -128,13 +128,13 @@ class Rev_MViT_Decoder(nn.Module):
         assert len(attn_up) == len(up_channels)  # channels and attentions lists have same lengths
         assert config.decoder_stage_size >= 1  # if 1 only upsample remains
 
-        self.custom_backward = custom_backward
+        self.grad_calc_way = grad_calc_way
         
         self.decode_blocks = nn.ModuleList()
         self.decode_blocks.append(PostQuantModule(
             z_channels=config.z_channels,
             embed_dim=up_channels[0],
-            custom_backward=custom_backward,
+            custom_backward=grad_calc_way.is_custom_bp_for_not_reversible,
             enable_amp=enable_amp
         ))
 
@@ -150,7 +150,7 @@ class Rev_MViT_Decoder(nn.Module):
                 num_layers=config.up_scale_layers, 
                 fuse_res_paths=attn_up[stage - 1],  # fuse if previous stage has rev blocks
                 duplicate_output=attn_up[stage],  # duplicate if current stage has rev blocks
-                custom_backward=custom_backward,
+                custom_backward=grad_calc_way.is_custom_bp_for_not_reversible,
                 enable_amp=enable_amp,
             ))
             input_size = [s * 2 for s in input_size]
@@ -171,7 +171,7 @@ class Rev_MViT_Decoder(nn.Module):
                     use_rel_pos=config.use_rel_pos,
                     rel_pos_zero_init=config.rel_pos_zero_init,
                     input_size=input_size,
-                    custom_backward=custom_backward,
+                    custom_backward=grad_calc_way.is_custom_bp_for_reversible,
                     enable_amp=enable_amp,
                 ))
             num_heads = max(num_heads // 2, config.num_heads_min)
@@ -183,9 +183,21 @@ class Rev_MViT_Decoder(nn.Module):
             fuse_res_paths=attn_up[-1],  # fuse if last stage has rev blocks
             embed_dim=up_channels[-1],
             im_channels=im_channels,
-            custom_backward=custom_backward,
+            custom_backward=grad_calc_way.is_custom_bp_for_not_reversible,
             enable_amp=enable_amp
         ))
+    
+    def create_blocks_stack(self, blocks) -> list[tuple[bool, list[int]]]:
+        stack = []
+        for l_i in range(len(blocks)):
+            if isinstance(blocks[l_i], ReversibleModule):
+                if len(stack) == 0 or not stack[-1][0]:
+                    stack.append((True, []))
+            else:
+                if len(stack) == 0 or stack[-1][0]:
+                    stack.append((False, []))
+            stack[-1][1].append(l_i)
+        return stack
 
     @staticmethod
     def vanilla_backward(x, t, modules):
@@ -198,14 +210,19 @@ class Rev_MViT_Decoder(nn.Module):
         return x
 
     def forward(self, x):
-        if not self.training or not self.custom_backward:
-            self.logger.debug("Start Rev_MViT_Decoder vanilla_backward")
-            executing_fn = Rev_MViT_Decoder.vanilla_backward
-        else:
-            self.logger.debug("Start Rev_MViT_Decoder EfficientRevBackProp")
-            x.requires_grad_()
-            executing_fn = EfficientRevBackProp.apply
-        
-        x = executing_fn(x, 1, self.decode_blocks)
-
+        match self.grad_calc_way:
+            case GradientCalculationWays.VANILLA_BP:
+                self.logger.debug("Start Rev_MViT_Encoder VANILLA_BP")
+                x = self.vanilla_backward(x, 1, self.decode_blocks)
+            case GradientCalculationWays.REVERSE_CALCULATION_FULL:
+                self.logger.debug("Start Rev_MViT_Decoder REVERSE_CALCULATION_FULL")
+                x.requires_grad_()
+                x = EfficientRevBackProp.apply(x, 1, self.decode_blocks)
+            case GradientCalculationWays.REVERSE_CALCULATION:
+                self.logger.debug("Start Rev_MViT_Decoder REVERSE_CALCULATION")
+                stack: list[tuple[bool, list[int]]] = self.create_blocks_stack(self.decode_blocks)
+                for is_rev, substack in stack:
+                    x = (EfficientRevBackProp.apply if is_rev else self.vanilla_backward)(
+                        x, 1, self.decode_blocks[substack[0] : substack[-1] + 1]
+                    )
         return x

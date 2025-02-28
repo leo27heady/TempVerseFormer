@@ -15,8 +15,17 @@ class VaeModelTypes(Enum):
 
 
 class GradientCalculationWays(Enum):
-    REVERSE_CALCULATION: str = "TEMP_VERSE_FORMER"
+    REVERSE_CALCULATION: str = "REVERSE_CALCULATION"
+    REVERSE_CALCULATION_FULL: str = "REVERSE_CALCULATION_FULL"
     VANILLA_BP: str = "VANILLA_BP"
+
+    @property
+    def is_custom_bp_for_reversible(self) -> bool:
+        return self != self.VANILLA_BP
+
+    @property
+    def is_custom_bp_for_not_reversible(self) -> bool:
+        return self == self.REVERSE_CALCULATION_FULL
 
 
 class TemporalPatterns(Enum):
