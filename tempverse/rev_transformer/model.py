@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.autograd import Function as Function
 from einops import rearrange
+from timm.models.layers import trunc_normal_
 
 from .block import ReversibleBlock
 from ..rev_back_prop import NotReversibleModule, EfficientRevBackProp
@@ -136,6 +137,17 @@ class RevFormer(nn.Module):
 
         # Switch between vanilla backprop and rev backprop
         self.grad_calc_way = grad_calc_way
+        
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
     @staticmethod
     def vanilla_backward(x, t, layers):
@@ -149,6 +161,8 @@ class RevFormer(nn.Module):
         return x
 
     def forward(self, x, t):
+        if t == 0: return x
+        
         match self.grad_calc_way:
             case GradientCalculationWays.VANILLA_BP:
                 self.logger.debug("Start RevFormer VANILLA_BP")
@@ -165,6 +179,7 @@ class RevFormer(nn.Module):
                 x = self.vanilla_backward(x, 1, self.input_projection)
                 x = EfficientRevBackProp.apply(x, t, self.layers)
                 x = self.vanilla_backward(x, 1, self.output_projection)
+        
         return x
 
 

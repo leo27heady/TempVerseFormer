@@ -21,14 +21,17 @@ class ShapeDataset(IterableDataset):
             transforms.ConvertImageDtype(torch.float32),
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
+        self.time_to_pred_min = self.config.time_to_pred.min
+
+        assert 0 <= self.config.min_patterns <= len(self.config.temporal_patterns)
         
         if self.config.gradual_complexity and self.config.time_to_pred.max != 0:
             assert sum(self.config.gradual_complexity) == 1.0
-            assert len(self.config.gradual_complexity) == self.config.time_to_pred.max - self.config.time_to_pred.min + 1
+            assert len(self.config.gradual_complexity) == self.config.time_to_pred.max - self.time_to_pred_min + 1
             
             self.increase_complexity_step_iter = iter(self.config.gradual_complexity)
             self.increase_complexity_steps = 0
-            self.start_max_batch_time = self.config.time_to_pred.min - 1
+            self.start_max_batch_time = self.time_to_pred_min - 1
             
             while self.increase_complexity_steps <= self.current_steps:
                 self.increase_complexity_steps += next(self.increase_complexity_step_iter) * self.total_steps
@@ -57,9 +60,13 @@ class ShapeDataset(IterableDataset):
         while True:
 
             if self.increase_complexity_steps and self.current_steps >= self.increase_complexity_steps:
+                if self.start_max_batch_time == 0:
+                    self.time_to_pred_min = 1  # if start from 0 then increase min to 1
+                
                 self.start_max_batch_time += 1
                 self.increase_complexity_steps = self.current_steps + next(self.increase_complexity_step_iter, 0) * self.total_steps
-            current_batch_time = random.randint(self.config.time_to_pred.min, self.start_max_batch_time)
+
+            current_batch_time = random.randint(self.time_to_pred_min, self.start_max_batch_time)
             
             batch_images,batch_angles, batch_temp_patterns = [], [], []
             for batch in range(self.config.batch_size):
@@ -102,7 +109,12 @@ class ShapeDataset(IterableDataset):
                         selected_temporal_patterns.remove(TemporalPatterns.INTERRUPTION)
 
                 # Can be empty
-                selected_temporal_patterns = random.choices(selected_temporal_patterns, k=random.randint(0, len(selected_temporal_patterns)))
+                if selected_temporal_patterns:
+                    selected_temporal_patterns = np.random.choice(
+                        selected_temporal_patterns, 
+                        size=random.randint(self.config.min_patterns, len(selected_temporal_patterns) if self.config.pattern_combining else 1),
+                        replace=False
+                    )
                 
                 acceleration, deceleration, oscillation_period, interruption_period = 0.0, 0.0, 0.0, 0.0
                 step_swap = 0.0

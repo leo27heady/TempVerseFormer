@@ -15,9 +15,9 @@ class VaeModelTypes(Enum):
 
 
 class GradientCalculationWays(Enum):
-    REVERSE_CALCULATION: str = "REVERSE_CALCULATION"
-    REVERSE_CALCULATION_FULL: str = "REVERSE_CALCULATION_FULL"
-    VANILLA_BP: str = "VANILLA_BP"
+    REVERSE_CALCULATION: str = "REVERSE_CALCULATION"  # store activations only for non reversible modules
+    REVERSE_CALCULATION_FULL: str = "REVERSE_CALCULATION_FULL"  # don't store activations at all
+    VANILLA_BP: str = "VANILLA_BP"  # store all the activations
 
     @property
     def is_custom_bp_for_reversible(self) -> bool:
@@ -66,32 +66,33 @@ class IntervalModel(BaseModel):
 
 
 class DataConfig(BaseModel):
-    gradual_complexity: list[float] | None = [0.2, 0.3, 0.1, 0.1, 0.3]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
+    gradual_complexity: list[float] | None = [0.2, 0.4, 0.1, 0.1, 0.2]  # Must be 1 in sum, and length equal to the time_to_pred.max - time_to_pred.min + 1
     temporal_patterns: list[TemporalPatterns] = []
+    min_patterns: int = 0
+    pattern_combining: bool = False
     render_window_size: int = 64
     im_channels: int = 3
     context_size: int = 12
-    batch_size: int = 16
+    batch_size: int = 8
     time_to_pred: IntervalModel = IntervalModel(min=1, max=5)
 
-    # Greater than 0
-    angle: IntervalModel = IntervalModel(min=5, max=20)
+    angle: IntervalModel = IntervalModel(min=5, max=20)  # Greater than 0
     acceleration_hundredth: IntervalModel = IntervalModel(min=3, max=6)
-    oscillation_period: IntervalModel = IntervalModel(min=1, max=6)
-    interruption_period: IntervalModel = IntervalModel(min=1, max=6)
+    oscillation_period: IntervalModel = IntervalModel(min=1, max=4)
+    interruption_period: IntervalModel = IntervalModel(min=1, max=4)
 
     # TODO: Add validators like assert batch_time > context_size
 
 class ReversibleVaeConfig(BaseModel):
     z_channels: int = 256
     down_channels: list[int] = [8, 16, 32, 64, 128, 256, 384]
-    attn_down: list[bool] = [False, False, True, True, True, True]
-    attn_up: list[bool] = [True, True, True, True, False, False]
+    attn_down: list[bool] = [False, False, False, True, True, True]
+    attn_up: list[bool] = [True, True, True, False, False, False]
     down_scale_layers: int = 1
     up_scale_layers: int = 1
     norm_channels: int = 8
-    encoder_stage_size: int = 3
-    decoder_stage_size: int = 3
+    encoder_stage_size: int = 2
+    decoder_stage_size: int = 2
     num_heads_min: int = 1
     num_heads_max: int = 16
     adaptive_kv_stride: int = 4
@@ -145,6 +146,8 @@ class TrainingConfig(BaseModel):
     grad_calc_way: GradientCalculationWays
     num_reps: int = 1
     steps: int = 30_000
+    kl_weight_start_step: int = 25_000
+    kl_weight_warmup_steps: int = 5_000
     lr: float = 5e-6
     weight_decay: float = 0.0
     record_freq: int = 10
@@ -269,7 +272,7 @@ if __name__ == "__main__":
     ##########################
     
     for temp_model in TempModelTypes.__members__.keys():
-        temp_model_name = temp_model.lower().replace("_", "-")
+        temp_model_name = temp_model.lower().replace("_", "-") + "-vanilla-vae"
         temp_model_group = ConfigGroup(
             group=[
                 Config(
@@ -278,7 +281,7 @@ if __name__ == "__main__":
                         name=f"{temp_model_name}",
                         log_to_wandb=True,
                         temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.REV_VAE,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
                     ),
                     data=DataConfig(
                         temporal_patterns=[]
@@ -291,10 +294,96 @@ if __name__ == "__main__":
                 Config(
                     general=GeneralConfig(
                         project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--acceleration",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.ACCELERATION],
+                        min_patterns=1
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
+                ),
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--deceleration",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.DECELERATION],
+                        min_patterns=1
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
+                ),
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--oscillation",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.OSCILLATION],
+                        min_patterns=1
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
+                ),
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--deceleration-oscillation",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION],
+                        min_patterns=2,
+                        pattern_combining=True
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
+                ),
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}--interruption",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[TemporalPatterns.INTERRUPTION],
+                        min_patterns=1
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+                    )
+                ),
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
                         name=f"{temp_model_name}--all-patterns",
                         log_to_wandb=True,
                         temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.REV_VAE,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
                     ),
                     data=DataConfig(
                         temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]

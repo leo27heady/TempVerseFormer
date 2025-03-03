@@ -71,7 +71,8 @@ class Trainer():
         if self.training_config.train_type != TrainTypes.TEMP_ONLY:
             self.lpips_loss_fn = LPIPS(net='alex').to(device=device).requires_grad_(False)
 
-        self.kl_weight = 5e-6
+        self.kl_weight = 1.0
+        self.max_kl_weight = 1e-4
         self.perceptual_weight = 1.0
 
         self.histories = {
@@ -81,6 +82,14 @@ class Trainer():
             'loss': [], 'recon_losses': [], 'vae_recon_losses': [], 'perceptual_losses': [], 'kl_losses': []
         }
 
+    def warmup(self, current_step: int):
+        warmup_step = self.training_config.kl_weight_warmup_steps + self.training_config.kl_weight_start_step
+        if current_step < self.training_config.kl_weight_start_step:
+            self.kl_weight = 0.0
+        elif current_step < warmup_step:
+            self.kl_weight = self.max_kl_weight * float(current_step / warmup_step)
+        else:
+            self.kl_weight = self.max_kl_weight
 
     def denormalize(self, tensor: torch.Tensor, mean: float = 0.5, std: float = 0.5) -> torch.Tensor:
         return tensor * std + mean
@@ -136,6 +145,8 @@ class Trainer():
         """
 
         for step, (batch_t, images, angles, temp_patterns) in enumerate(data_loader, start=start_step):
+            self.warmup(step)
+
             batch_t = batch_t.squeeze(dim=0).to(device=self.device)
             images = images.squeeze(dim=0).to(device=self.device)
             angles = angles.squeeze(dim=0).to(device=self.device)
@@ -242,7 +253,7 @@ class Trainer():
     
     def calculate_kl_loss(self, encoder_output):
         mean, logvar = torch.chunk(encoder_output, 2, dim=1)
-        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mean ** 2 - 1 - logvar, dim=[1, 2, 3]))
+        kl_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp(), dim=[1, 2, 3]))
         self.buffer['kl_losses'].append(kl_loss.item())
         return kl_loss
     
