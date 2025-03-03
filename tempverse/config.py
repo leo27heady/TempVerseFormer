@@ -401,3 +401,40 @@ if __name__ == "__main__":
                 temp_model_group.model_dump(mode="json"),
                 f, allow_unicode=True, default_flow_style=None, width=float("inf")
             )
+
+
+    #########################
+    ####    GROUP Eval   ####
+    #########################
+    
+    for temp_model in TempModelTypes.__members__.keys():
+        temp_model_name = temp_model.lower().replace("_", "-") + "-vanilla-vae--eval"
+        temp_model_group = ConfigGroup(
+            group=[
+                Config(
+                    general=GeneralConfig(
+                        project=f"{temp_model_name}",
+                        name=f"{temp_model_name}",
+                        log_to_wandb=True,
+                        temp_model_type=temp_model,
+                        vae_model_type=VaeModelTypes.VANILLA_VAE,
+                    ),
+                    data=DataConfig(
+                        temporal_patterns=[],
+                        gradual_complexity=None,
+                        batch_size=16
+                    ),
+                    training=TrainingConfig(
+                        train_type=TrainTypes.DEFAULT,
+                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
+                        steps=100
+                    )
+                )
+            ]
+        )
+
+        with open(f"configs/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                temp_model_group.model_dump(mode="json"),
+                f, allow_unicode=True, default_flow_style=None, width=float("inf")
+            )

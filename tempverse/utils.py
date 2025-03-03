@@ -4,6 +4,19 @@ from datetime import datetime
 from .settings import LOGGING_LEVEL
 
 
+def seed_everything(seed: int = 42) -> None:
+    import random, os
+    import numpy as np
+    import torch
+    
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
 def create_timestamp() -> str:
     now = datetime.now()
     return now.strftime("%Y_%m_%d %H_%M_%S")

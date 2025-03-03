@@ -16,12 +16,13 @@ from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
 from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
-from tempverse.utils import BaseLogger, create_timestamp
+from tempverse.utils import BaseLogger, seed_everything, create_timestamp
 
 
 if __name__ == "__main__":
     logger = BaseLogger(__name__)
     load_dotenv()
+    seed_everything()
 
     parser = argparse.ArgumentParser("Temporal Modeling on Simple Shapes Rotation")
     parser.add_argument("--config_groups", nargs='+', default=[])
@@ -42,6 +43,7 @@ if __name__ == "__main__":
         run_timestamp = create_timestamp()
         for j in range(1, config.training.num_reps + 1):
             logger.info("{}/{} rep".format(j, config.training.num_reps))
+            seed_everything()
 
             is_not_efficient_memory = (config.training.grad_calc_way == GradientCalculationWays.VANILLA_BP)
             

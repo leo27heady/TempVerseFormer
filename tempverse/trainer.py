@@ -100,7 +100,7 @@ class Trainer():
         angles: torch.Tensor, temp_patterns: torch.Tensor
     ) -> None:
 
-        time, batch, channels, height, width = x_pred.shape
+        batch, time, channels, height, width = x_pred.shape
 
         # Directory to save the image series
         save_dir = Path(self.save_dir) / Path("sample_images") / Path(name)
@@ -109,10 +109,11 @@ class Trainer():
         # Randomly sample N indices from the batch dimension
         indices = torch.randperm(batch)[:num_samples]
 
-        x_pred_sampled = self.denormalize(x_pred[:, indices])  # Shape: [time, num_samples, channels, height, width]
-        x_expected_sampled = self.denormalize(x_expected[:, indices])  # Shape: [time, num_samples, channels, height, width]
+        x_pred_sampled = self.denormalize(x_pred[indices])  # Shape: [batch, time, channels, height, width]
+        x_expected_sampled = self.denormalize(x_expected[indices])  # Shape: [batch, time, channels, height, width]
 
         # Save the sampled image series
+        concat_image = torch.cat([x_expected_sampled, x_pred_sampled], dim=4)
         for i, batch_idx in enumerate(indices):
             series_dir = save_dir / f"batch_{batch_idx.item()}"
             series_dir.mkdir(parents=True, exist_ok=True)
@@ -128,10 +129,9 @@ class Trainer():
                 )
 
             for t in range(time):
-                concat_image = torch.cat([x_expected_sampled, x_pred_sampled], dim=4)
                 # Save predicted image
                 save_path = series_dir / f"t{t:02d}.png"
-                save_image(concat_image[t, i], save_path)
+                save_image(concat_image[i, t], save_path)
 
         self.logger.info(f"Saved {num_samples} image series in '{save_dir}'.")
 
@@ -189,8 +189,8 @@ class Trainer():
 
                 with torch.no_grad():
                     self.sample_and_save(
-                        rearrange(decoder_output, "b t c w h -> t b c w h"), 
-                        rearrange(expected_images, "b t c w h -> t b c w h"), 
+                        decoder_output, 
+                        expected_images, 
                         num_samples=2,  # number of batch samples
                         name=pretty_name,
                         time_to_pred=time_to_pred,
