@@ -32,6 +32,7 @@ if __name__ == "__main__":
     with open(f"configs/{args.config_groups[0]}.yaml", "r", encoding="utf-8") as data:
         config_group = ConfigGroup(**yaml.safe_load(data))
     
+    run_timestamp = create_timestamp()
     for i, config in enumerate(config_group.group, start=1):
 
         logger.info(f"Processing config {i}/{len(config_group.group)}")
@@ -40,7 +41,6 @@ if __name__ == "__main__":
 
         device = torch.device("cuda")
 
-        run_timestamp = create_timestamp()
         for j in range(1, config.training.num_reps + 1):
             logger.info("{}/{} rep".format(j, config.training.num_reps))
             seed_everything()
