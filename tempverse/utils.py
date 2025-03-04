@@ -21,6 +21,11 @@ def create_timestamp() -> str:
     now = datetime.now()
     return now.strftime("%Y_%m_%d %H_%M_%S")
 
+def convert_bytes(bytes: float | None, degree: int = 2) -> float:
+    if not bytes: return bytes
+    
+    return bytes / (1024**degree)  # convert to MB by default
+
 
 class BaseLogger(logging.Logger):
 
