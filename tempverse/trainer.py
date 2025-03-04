@@ -156,11 +156,7 @@ class Trainer():
             batch_size, images_count, c, w, h = images.shape
             context_size = images_count - time_to_pred
             input_images = images[:, :context_size]
-
-            if isinstance(self.model, Seq2SeqLSTM):
-                expected_images = images[:, -time_to_pred:]
-            else:
-                expected_images = images[:, -context_size:]
+            expected_images = images[:, -context_size:]
             # expected_images = images[:, -time_to_pred:]
 
             self.optimizer.zero_grad()
@@ -275,7 +271,7 @@ class Trainer():
 
         decoder_input = rearrange(y_pred, "b t c w h -> (b t) c w h")
         decoder_output = self.vae_model.decode(decoder_input)
-        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=y_pred.shape[1])
+        decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=context_size)
         # decoder_output = decoder_output[:, -time_to_pred:]
 
         recon_loss = self.recon_criterion(decoder_output, expected_images)

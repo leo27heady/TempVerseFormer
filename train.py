@@ -98,7 +98,7 @@ if __name__ == "__main__":
                 if config.resume_training.vae_model_path:
                     vae_model.load_state_dict(torch.load(config.resume_training.vae_model_path, map_location=device))
             else:
-                start_step = 0
+                start_step = 1
                 directory = f"results/{config.general.project}/{run_timestamp}/{config.general.name}/rep_{j}"
                 wandb_name = f"{config.general.name}--{run_timestamp}--{j}"
                 wandb_id = None

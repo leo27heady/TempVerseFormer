@@ -35,7 +35,10 @@ class Seq2SeqLSTM(nn.Module):
         context_size, batch_size, input_size = x.shape
         
         # tensor to store decoder outputs
-        outputs = torch.zeros(t, batch_size, input_size, dtype=x.dtype, device=x.device)
+        outputs = torch.zeros_like(x)
+
+        for i in range(context_size - t):
+            outputs[i] = x[i + t]
         
         x = self.input_projection(x)  # [sen_len, batch_size, embed_dim]
         # last hidden state of the encoder is used as the initial hidden state of the decoder
@@ -43,7 +46,7 @@ class Seq2SeqLSTM(nn.Module):
         
         # first input to the decoder is the last context image
         input = x[-1]
-        for i in range(t):
+        for i in range(context_size - t, context_size):
             # insert input token embedding, previous hidden and previous cell states 
             # receive output tensor (predictions) and new hidden and cell states.
             output, hidden, cell = self.decoder(input, hidden, cell)
