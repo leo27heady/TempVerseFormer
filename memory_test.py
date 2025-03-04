@@ -18,7 +18,7 @@ from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
 from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
-from tempverse.utils import BaseLogger, seed_everything, create_timestamp
+from tempverse.utils import BaseLogger, seed_everything, create_timestamp, convert_bytes
 
 
 if __name__ == "__main__":
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
                     try:
                         trainer.train(start_step=1, data_loader=data_loader)
-                        memory_allocated = torch.cuda.max_memory_allocated(device=None)
+                        memory_allocated = max(0, torch.cuda.max_memory_allocated(device=None) - default_memory_allocated)
                     except RuntimeError as e:
                         if "out of memory" in str(e):
                             memory_allocated = None
@@ -114,7 +114,7 @@ if __name__ == "__main__":
                         "vae_model": vae_model_name,
                         "batch":  batch,
                         "time_step": time_step,
-                        "memory_consumption": memory_allocated
+                        "memory_consumption": convert_bytes(memory_allocated)
                     })
 
                     trainer.optimizer.zero_grad()
