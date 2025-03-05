@@ -68,7 +68,7 @@ class ShapeDataset(IterableDataset):
 
             current_batch_time = random.randint(self.time_to_pred_min, self.start_max_batch_time)
             
-            batch_images,batch_angles, batch_temp_patterns = [], [], []
+            batch_images, batch_angles, batch_temp_patterns = [], [], []
             for batch in range(self.config.batch_size):
                 
                 # Selected imperially to fit the triangle to the render window, should be adjusted carefully

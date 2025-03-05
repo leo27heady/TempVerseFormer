@@ -42,7 +42,7 @@ class Trainer():
         self.training_config = training_config
 
         self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM | None = model
-        self.vae_model: VAE | Reversible_MViT_VAE = vae_model
+        self.vae_model: VAE | Reversible_MViT_VAE | None = vae_model
 
         match self.training_config.train_type:
             case TrainTypes.DEFAULT:
@@ -69,7 +69,7 @@ class Trainer():
         self.verbose = verbose
 
         if self.training_config.train_type != TrainTypes.TEMP_ONLY:
-            self.lpips_loss_fn = LPIPS(net='alex').to(device=device).requires_grad_(False)
+            self.lpips_loss_fn = LPIPS(net='alex', verbose=verbose).to(device=device).requires_grad_(False)
 
         self.kl_weight = 1.0
         self.max_kl_weight = 1e-4
@@ -320,13 +320,15 @@ class Trainer():
 
         batch_size, images_count, c, w, h = images.shape
 
-        images = rearrange(images, "b t c w h -> (b t) c w h")
-        with torch.no_grad():
-            z, _ = self.vae_model.encode(images)
+        if self.vae_model is None:
+            z = images  # for the memory testing purposes
+        else:
+            with torch.no_grad():
+                images = rearrange(images, "b t c w h -> (b t) c w h")
+                z, _ = self.vae_model.encode(images)
+                z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         
-        z = rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=images_count)
         y_pred = self.model(z[:, :context_size], time_to_pred)
-
         loss = self.recon_criterion(y_pred, z[:, -context_size:])
         self.buffer['recon_losses'].append(loss.item())
 
