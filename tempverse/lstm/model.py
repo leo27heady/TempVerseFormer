@@ -36,9 +36,10 @@ class Seq2SeqLSTM(nn.Module):
         
         # tensor to store decoder outputs
         outputs = torch.zeros_like(x)
-
-        for i in range(context_size - t):
-            outputs[i] = x[i + t]
+        
+        if context_size - t > 0:
+            for i in range(context_size - t):
+                outputs[i] = x[i + t]
         
         x = self.input_projection(x)  # [sen_len, batch_size, embed_dim]
         # last hidden state of the encoder is used as the initial hidden state of the decoder
@@ -52,7 +53,7 @@ class Seq2SeqLSTM(nn.Module):
             output, hidden, cell = self.decoder(input, hidden, cell)
             
             # replace predictions in a tensor holding predictions
-            outputs[i] = self.output_projection(self.output_norm(output))  # [batch_size, input_size]
+            if i >= 0: outputs[i] = self.output_projection(self.output_norm(output))  # [batch_size, input_size]
 
             input = output
         
