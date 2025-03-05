@@ -48,7 +48,7 @@ echo "Virtual environment created and activated."
 
 # Install dependencies
 pip install torch==2.5.1 torchvision==0.20.1 torcheval==0.0.7 --index-url https://download.pytorch.org/whl/cu124
-pip install einops==0.8.0 timm==1.0.14 wandb==0.19.1 lpips==0.1.4 torcheval-nightly==2024.7.31 scikit-image==0.25.2
+pip install einops==0.8.0 timm==1.0.14 wandb==0.19.1 lpips==0.1.4 torcheval-nightly==2024.7.31 scikit-image==0.25.2 calflops==0.3.2 transformers==4.49.0
 
 # Install from requirements.txt if exists
 REQ_FILE="$REPO_NAME/requirements.txt"

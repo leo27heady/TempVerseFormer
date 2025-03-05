@@ -68,7 +68,7 @@ if __name__ == "__main__":
     vae_models = {}
     if "all" in args.vae_models:
         vae_models = {
-            "rev_vae": Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, grad_calc_way=config.training.grad_calc_way).to(device),
+            # "rev_vae": Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, grad_calc_way=config.training.grad_calc_way).to(device),
             "vae": VAE(im_channels=config.data.im_channels, config=config.vae).to(device),
         }
     else:
@@ -82,6 +82,9 @@ if __name__ == "__main__":
     torch.cuda.reset_peak_memory_stats(device=None)
     default_memory_allocated = torch.cuda.max_memory_allocated(device=None)
     run_timestamp = create_timestamp()
+    
+    path_dir: str = f"eval_results/memory"
+    Path(path_dir).mkdir(parents=True, exist_ok=True)
 
     memory_results = {}
     # go thought all the combinations
@@ -148,8 +151,6 @@ if __name__ == "__main__":
                         memory_results[key] = memory_info
                         logger.info(f"Memory info: {memory_info}")
     
-    # save the results
-    path_dir: str = f"eval_results/memory"
-    Path(path_dir).mkdir(parents=True, exist_ok=True)
-    with open(f"{path_dir}/{run_timestamp}.json", "w", encoding="utf-8") as f:
-        json.dump(memory_results, f, ensure_ascii=False, indent=4)
+                        # save the results
+                        with open(f"{path_dir}/{run_timestamp}.json", "w", encoding="utf-8") as f:
+                            json.dump(memory_results, f, ensure_ascii=False, indent=4)
