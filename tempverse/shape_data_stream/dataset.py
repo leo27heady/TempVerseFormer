@@ -63,8 +63,11 @@ class ShapeDataset(IterableDataset):
                 if self.start_max_batch_time == 0:
                     self.time_to_pred_min = 1  # if start from 0 then increase min to 1
                 
-                self.start_max_batch_time += 1
-                self.increase_complexity_steps = self.current_steps + next(self.increase_complexity_step_iter, 0) * self.total_steps
+                if self.config.time_to_pred.max == self.start_max_batch_time:
+                    self.increase_complexity_steps = 0
+                else:
+                    self.start_max_batch_time += 1
+                    self.increase_complexity_steps = self.current_steps + next(self.increase_complexity_step_iter, 0) * self.total_steps
 
             current_batch_time = random.randint(self.time_to_pred_min, self.start_max_batch_time)
             

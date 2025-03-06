@@ -83,7 +83,7 @@ if __name__ == "__main__":
         vae_model.load_state_dict(torch.load(config.general.pretrained_vae_model_path, map_location=device))
         vae_model = vae_model.eval().requires_grad_(False)
         
-        directory = f"eval_results/{run_timestamp}/{config.general.name}"
+        directory = f"eval_results/metrics/{run_timestamp}/{config.general.name}"
         validator = Validator(vae_model, model, device, directory)
         data_loader = DataLoader(ShapeDataset(device, config.data, 0, 1), batch_size=1)
 

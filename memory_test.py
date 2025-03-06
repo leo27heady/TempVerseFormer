@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
+from calflops import calculate_flops
 
 from tempverse.config import Config, DataConfig, GeneralConfig, TrainingConfig, IntervalModel, TempModelTypes, VaeModelTypes, GradientCalculationWays, TrainTypes
 from tempverse.shape_data_stream import MockShapeDataset
@@ -25,8 +26,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("Memory Test of Temporal Modeling")
     parser.add_argument("--temp_models", nargs='+', default=["all"])  # some of the ["rev_transformer", "vanilla_transformer", "lstm"]
     parser.add_argument("--vae_models", nargs='+', default=["all"])  # some of the ["rev_vae", "vae"]
-    parser.add_argument("--batches", nargs='+', default=[1, 4, 32, 128, 256, 512])
-    parser.add_argument("--time_steps", nargs='+', default=[1, 4, 32, 128, 256, 512])
+    parser.add_argument("--batches", nargs='+', default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
+    parser.add_argument("--time_steps", nargs='+', default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
     args = parser.parse_args()
 
     train_steps = 1
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         ),
         data=DataConfig(gradual_complexity=None),
         training=TrainingConfig(
-            grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION_FULL,
+            grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
             steps=train_steps,
             record_freq=train_steps + 1,
             print_freq=train_steps + 1,
@@ -46,6 +47,10 @@ if __name__ == "__main__":
         )
     )
     device = torch.device("cuda")
+
+    # prevent usage of shared memory on Windows
+    # refer to this: https://github.com/huggingface/pytorch-image-models/discussions/2128
+    torch.cuda.set_per_process_memory_fraction(0.95)
 
     # parse selected temp models
     temp_models = {}
@@ -68,7 +73,7 @@ if __name__ == "__main__":
     vae_models = {}
     if "all" in args.vae_models:
         vae_models = {
-            # "rev_vae": Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, grad_calc_way=config.training.grad_calc_way).to(device),
+            "rev_vae": Reversible_MViT_VAE(im_channels=config.data.im_channels, img_size=config.data.render_window_size, config=config.rev_vae, grad_calc_way=config.training.grad_calc_way).to(device),
             "vae": VAE(im_channels=config.data.im_channels, config=config.vae).to(device),
         }
     else:
@@ -122,17 +127,32 @@ if __name__ == "__main__":
                             wandb_runner=None, verbose=False, training_config=config.training,
                         )
 
+                        time_elapsed, memory_allocated = None, None
+                        temp_flops, temp_macs, temp_params = None, None, None
+                        vae_flops, vae_macs, vae_params = None, None, None
                         try:
                             ts = time.time()
                             trainer.train(start_step=1, data_loader=data_loader)
                             te = time.time()
                             time_elapsed = te - ts
+
                             memory_allocated = max(0, torch.cuda.max_memory_allocated(device=None) - default_memory_allocated)
+                            
+                            # Calculate base models information: FLOPS, MACS and parameters count
+                            if _temp_model is not None and _vae_model is not None:
+                                torch.cuda.empty_cache()
+                                input_cal_flops = torch.randn((batch, config.data.context_size, 256, 1, 1), device=device, requires_grad=True)
+                                temp_flops, temp_macs, temp_params = calculate_flops(model=_temp_model, kwargs={"x": input_cal_flops, "t": torch.tensor(time_step)}, output_as_string=False, print_results=False)
+                                _temp_model.train()
+                                del input_cal_flops
+
+                                torch.cuda.empty_cache()
+                                input_cal_flops = torch.randn((batch, config.data.im_channels, config.data.render_window_size, config.data.render_window_size), device=device, requires_grad=True)
+                                vae_flops, vae_macs, vae_params = calculate_flops(model=_vae_model, kwargs={"x": input_cal_flops}, output_as_string=False, print_results=False)
+                                _vae_model.train()
+                                del input_cal_flops
                         except RuntimeError as e:
-                            if "out of memory" in str(e) or "not enough memory" in str(e):
-                                time_elapsed = None
-                                memory_allocated = None
-                            else:
+                            if "out of memory" not in str(e) and "not enough memory" not in str(e):
                                 raise e
 
                         # clear cache and update the default memory 
@@ -146,6 +166,12 @@ if __name__ == "__main__":
                         memory_info = {
                             "train_consumption": convert_bytes(memory_allocated),
                             "default_consumption": convert_bytes(default_memory_allocated),
+                            "temp_flops": temp_flops,
+                            "temp_macs": temp_macs,
+                            "temp_params": temp_params,
+                            "vae_flops": vae_flops,
+                            "vae_macs": vae_macs,
+                            "vae_params": vae_params,
                             "time_elapsed": time_elapsed,
                         }
                         memory_results[key] = memory_info
