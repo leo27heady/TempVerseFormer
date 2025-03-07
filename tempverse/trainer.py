@@ -12,6 +12,7 @@ from .vae import VAE
 from .rev_vae import Reversible_MViT_VAE
 from .rev_transformer import RevFormer
 from .vanilla_transformer import VanillaTransformer
+from tempverse.pipe_transformer import PipeTransformer
 from .lstm import Seq2SeqLSTM
 from .config import TrainingConfig, TrainTypes
 from .utils import BaseLogger
@@ -41,7 +42,7 @@ class Trainer():
         self.logger = BaseLogger(__name__)
         self.training_config = training_config
 
-        self.model: RevFormer | VanillaTransformer | Seq2SeqLSTM | None = model
+        self.model: RevFormer | VanillaTransformer | PipeTransformer | Seq2SeqLSTM | None = model
         self.vae_model: VAE | Reversible_MViT_VAE | None = vae_model
 
         match self.training_config.train_type:

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load config group
-    with open(f"configs/{args.config_groups[0]}.yaml", "r", encoding="utf-8") as data:
+    with open(f"configs/eval/{args.config_groups[0]}.yaml", "r", encoding="utf-8") as data:
         config_group = ConfigGroup(**yaml.safe_load(data))
     
     run_timestamp = create_timestamp()
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         vae_model = vae_model.eval().requires_grad_(False)
         
         directory = f"eval_results/metrics/{run_timestamp}/{config.general.name}"
-        validator = Validator(vae_model, model, device, directory)
+        validator = Validator(model, vae_model, device, directory)
         data_loader = DataLoader(ShapeDataset(device, config.data, 0, 1), batch_size=1)
 
         run_timestamp = create_timestamp()

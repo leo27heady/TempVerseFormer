@@ -30,7 +30,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load config group
-    with open(f"configs/{args.config_groups[0]}.yaml", "r", encoding="utf-8") as data:
+    with open(f"configs/train/{args.config_groups[0]}.yaml", "r", encoding="utf-8") as data:
         config_group = ConfigGroup(**yaml.safe_load(data))
     
     run_timestamp = create_timestamp()

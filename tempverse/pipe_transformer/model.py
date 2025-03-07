@@ -55,7 +55,7 @@ class PipeTransformer(nn.Module):
         x = self.input_projection(x)
 
         for i in range(t):
-            x = torch.cat(x[:, 1:], x[:, -1:], dim=1)  # git rid of the first entry and duplicate the last
+            x = torch.cat((x[:, 1:], x[:, -1:]), dim=1)  # git rid of the first entry and duplicate the last
             x += self.pos_embeddings
             for _, layer in enumerate(self.layers):
                 x = layer(x)

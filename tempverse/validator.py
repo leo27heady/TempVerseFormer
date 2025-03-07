@@ -12,6 +12,7 @@ from tempverse.vae import VAE
 from tempverse.rev_vae import Reversible_MViT_VAE
 from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
+from tempverse.pipe_transformer import PipeTransformer
 from tempverse.lstm import Seq2SeqLSTM
 
 
@@ -19,14 +20,14 @@ class Validator():
 
     def __init__(
         self, 
-        vae_model, 
         model,
+        vae_model, 
         device,
         save_dir: str
     ) -> None:
 
+        self.model: RevFormer | VanillaTransformer | PipeTransformer | Seq2SeqLSTM = model
         self.vae_model: VAE | Reversible_MViT_VAE = vae_model
-        self.model: RevFormer | Seq2SeqLSTM | VanillaTransformer = model
         self.device = device
         self.save_dir = save_dir
 
@@ -113,7 +114,7 @@ class Validator():
         context_size = images_count - time_to_pred
 
         input_images = images[:, :context_size]
-        if isinstance(self.model, Seq2SeqLSTM):
+        if isinstance(self.model, Seq2SeqLSTM) or isinstance(self.model, PipeTransformer):
             expected_images = images[:, -time_to_pred:]
         else:
             expected_images = images[:, -context_size:]
