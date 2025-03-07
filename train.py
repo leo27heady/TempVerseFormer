@@ -14,6 +14,7 @@ from tempverse.vae import VAE
 from tempverse.rev_vae import Reversible_MViT_VAE
 from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
+from tempverse.pipe_transformer import PipeTransformer
 from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
 from tempverse.utils import BaseLogger, seed_everything, create_timestamp
@@ -56,6 +57,9 @@ if __name__ == "__main__":
                     case TempModelTypes.VANILLA_TRANSFORMER:
                         model = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size)
                         logger.info("VanillaTransformer model successfully initialized")
+                    case TempModelTypes.PIPE_TRANSFORMER:
+                        model = PipeTransformer(config.pipe_transformer, context_size=config.data.context_size)
+                        logger.info("PipeTransformer model successfully initialized")
                     case TempModelTypes.LSTM:
                         model = Seq2SeqLSTM(config.lstm)
                         logger.info("Seq2SeqLSTM model successfully initialized")

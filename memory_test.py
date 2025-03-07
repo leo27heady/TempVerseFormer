@@ -14,6 +14,7 @@ from tempverse.vae import VAE
 from tempverse.rev_vae import Reversible_MViT_VAE
 from tempverse.rev_transformer import RevFormer
 from tempverse.vanilla_transformer import VanillaTransformer
+from tempverse.pipe_transformer import PipeTransformer
 from tempverse.lstm import Seq2SeqLSTM
 from tempverse.trainer import Trainer
 from tempverse.utils import BaseLogger, seed_everything, create_timestamp, convert_bytes
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     seed_everything()
 
     parser = argparse.ArgumentParser("Memory Test of Temporal Modeling")
-    parser.add_argument("--temp_models", nargs='+', default=["all"])  # some of the ["rev_transformer", "vanilla_transformer", "lstm"]
+    parser.add_argument("--temp_models", nargs='+', default=["all"])  # some of the ["rev_transformer", "vanilla_transformer", "pipe_transformer", "lstm"]
     parser.add_argument("--vae_models", nargs='+', default=["all"])  # some of the ["rev_vae", "vae"]
     parser.add_argument("--batches", nargs='+', default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
     parser.add_argument("--time_steps", nargs='+', default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
@@ -58,6 +59,7 @@ if __name__ == "__main__":
         temp_models = {
             "rev_transformer": RevFormer(config.rev_transformer, context_size=config.data.context_size, grad_calc_way=config.training.grad_calc_way).to(device),
             "vanilla_transformer": VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size).to(device),
+            "pipe_transformer": PipeTransformer(config.pipe_transformer, context_size=config.data.context_size).to(device),
             "lstm": Seq2SeqLSTM(config.lstm).to(device),
         }
     else:
@@ -65,6 +67,8 @@ if __name__ == "__main__":
             temp_models["rev_transformer"] = RevFormer(config.rev_transformer, context_size=config.data.context_size, grad_calc_way=config.training.grad_calc_way).to(device)
         if "vanilla_transformer" in args.temp_models:
             temp_models["vanilla_transformer"] = VanillaTransformer(config.vanilla_transformer, context_size=config.data.context_size).to(device)
+        if "pipe_transformer" in args.temp_models:
+            temp_models["pipe_transformer"] = PipeTransformer(config.pipe_transformer, context_size=config.data.context_size).to(device)
         if "lstm" in args.temp_models:
             temp_models["lstm"] = Seq2SeqLSTM(config.lstm).to(device)
         assert temp_models

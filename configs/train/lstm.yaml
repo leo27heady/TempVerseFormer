@@ -1,0 +1,325 @@
+group:
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 0
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: []
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 1
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: [ACCELERATION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm--acceleration, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 1
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: [DECELERATION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm--deceleration, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 1
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: [OSCILLATION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm--oscillation, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 1
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: [INTERRUPTION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm--interruption, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+- data:
+    acceleration_hundredth: {max: 6, min: 3}
+    angle: {max: 20, min: 5}
+    batch_size: 8
+    context_size: 12
+    gradual_complexity: [0.2, 0.4, 0.1, 0.1, 0.2]
+    im_channels: 3
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 0
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
+    render_window_size: 64
+    temporal_patterns: [ACCELERATION, DECELERATION, OSCILLATION, INTERRUPTION]
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm--all-patterns, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
+  lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  resume_training: null
+  rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
+  rev_vae:
+    adaptive_kv_stride: 4
+    adaptive_window_size: 16
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
+    drop_path_rate: 0.0
+    encoder_stage_size: 2
+    fast_backprop: false
+    mlp_ratio: 4.0
+    norm_channels: 8
+    num_heads_max: 16
+    num_heads_min: 1
+    qkv_bias: true
+    rel_pos_zero_init: true
+    residual_pooling: true
+    up_scale_layers: 1
+    use_abs_pos: false
+    use_rel_pos: true
+    z_channels: 256
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: DEFAULT, weight_decay: 0.0}
+  vae:
+    attn_down: [false, false, false, true, true, true]
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_sample: [true, true, true, true, true, true]
+    mid_channels: [384]
+    norm_channels: 8
+    num_down_layers: 1
+    num_heads: 4
+    num_mid_layers: 2
+    num_up_layers: 1
+    z_channels: 256
+  vanilla_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}

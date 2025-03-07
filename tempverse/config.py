@@ -4,20 +4,21 @@ from pydantic import BaseModel, Field
 
 
 class TempModelTypes(Enum):
-    REV_TRANSFORMER: str = "REV_TRANSFORMER"
-    VANILLA_TRANSFORMER: str = "VANILLA_TRANSFORMER"
-    LSTM: str = "LSTM"
+    REV_TRANSFORMER = "REV_TRANSFORMER"
+    VANILLA_TRANSFORMER = "VANILLA_TRANSFORMER"
+    PIPE_TRANSFORMER = "PIPE_TRANSFORMER"
+    LSTM = "LSTM"
 
 
 class VaeModelTypes(Enum):
-    VANILLA_VAE: str = "VANILLA_VAE"
-    REV_VAE: str = "REV_VAE"
+    VANILLA_VAE = "VANILLA_VAE"
+    REV_VAE = "REV_VAE"
 
 
 class GradientCalculationWays(Enum):
-    REVERSE_CALCULATION: str = "REVERSE_CALCULATION"  # store activations only for non reversible modules
-    REVERSE_CALCULATION_FULL: str = "REVERSE_CALCULATION_FULL"  # don't store activations at all
-    VANILLA_BP: str = "VANILLA_BP"  # store all the activations
+    REVERSE_CALCULATION = "REVERSE_CALCULATION"  # store activations only for non reversible modules
+    REVERSE_CALCULATION_FULL = "REVERSE_CALCULATION_FULL"  # don't store activations at all
+    VANILLA_BP = "VANILLA_BP"  # store all the activations
 
     @property
     def is_custom_bp_for_reversible(self) -> bool:
@@ -29,16 +30,16 @@ class GradientCalculationWays(Enum):
 
 
 class TemporalPatterns(Enum):
-    ACCELERATION: str = "ACCELERATION"
-    DECELERATION: str = "DECELERATION"
-    OSCILLATION: str = "OSCILLATION"
-    INTERRUPTION: str = "INTERRUPTION"
+    ACCELERATION = "ACCELERATION"
+    DECELERATION = "DECELERATION"
+    OSCILLATION = "OSCILLATION"
+    INTERRUPTION = "INTERRUPTION"
 
 
 class TrainTypes(Enum):
-    DEFAULT: str = "DEFAULT"
-    VAE_ONLY: str = "VAE_ONLY"
-    TEMP_ONLY: str = "TEMP_ONLY"
+    DEFAULT = "DEFAULT"
+    VAE_ONLY = "VAE_ONLY"
+    TEMP_ONLY = "TEMP_ONLY"
 
 
 class ResumeTrain(BaseModel):
@@ -133,6 +134,13 @@ class VanillaTransformerConfig(BaseModel):
     depth: int = 8
 
 
+class PipeTransformerConfig(BaseModel):
+    input_dim: int = 256
+    embed_dim: int = 768
+    n_head: int = 8
+    depth: int = 8
+
+
 class LSTM_Config(BaseModel):
     input_dim: int = 256
     embed_dim: int = 768
@@ -168,6 +176,7 @@ class Config(BaseModel):
     
     rev_transformer: ReverseTransformerConfig = Field(default_factory=ReverseTransformerConfig)
     vanilla_transformer: VanillaTransformerConfig = Field(default_factory=VanillaTransformerConfig)
+    pipe_transformer: PipeTransformerConfig = Field(default_factory=PipeTransformerConfig)
     lstm: LSTM_Config = Field(default_factory=LSTM_Config)
 
 
@@ -177,102 +186,91 @@ class ConfigGroup(BaseModel):
 
 if __name__ == "__main__":
     import yaml
+    from pathlib import Path
+
+    train_path_dir: str = f"configs/train"
+    Path(train_path_dir).mkdir(parents=True, exist_ok=True)
+
+    eval_path_dir: str = f"configs/eval"
+    Path(eval_path_dir).mkdir(parents=True, exist_ok=True)
 
     
     ##############################
     ####    GROUP VAE ONLY    ####
     ##############################
     
-    rev_vae_only_group = ConfigGroup(
-        group=[
-            Config(
-                general=GeneralConfig(
-                    project="temp-verse-former-rev-vae",
-                    name="temp-verse-former-rev-vae",
-                    log_to_wandb=True,
-                    temp_model_type=None,
-                    vae_model_type=VaeModelTypes.REV_VAE,
-                ),
-                data=DataConfig(
-                    temporal_patterns=[],
-                    time_to_pred=IntervalModel(min=0, max=0),
-                    batch_size=16
-                ),
-                training=TrainingConfig(
-                    train_type=TrainTypes.VAE_ONLY,
-                    grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
-                ),
-            )
-        ]
-    )
+    # rev_vae_only_group = ConfigGroup(
+    #     group=[
+    #         Config(
+    #             general=GeneralConfig(
+    #                 project="temp-verse-former-rev-vae",
+    #                 name="temp-verse-former-rev-vae",
+    #                 log_to_wandb=True,
+    #                 temp_model_type=None,
+    #                 vae_model_type=VaeModelTypes.REV_VAE,
+    #             ),
+    #             data=DataConfig(
+    #                 temporal_patterns=[],
+    #                 time_to_pred=IntervalModel(min=0, max=0),
+    #                 batch_size=16
+    #             ),
+    #             training=TrainingConfig(
+    #                 train_type=TrainTypes.VAE_ONLY,
+    #                 grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
+    #             ),
+    #         )
+    #     ]
+    # )
 
-    with open("configs/rev-vae-only.yaml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            rev_vae_only_group.model_dump(mode="json"),
-            f, allow_unicode=True, default_flow_style=None, width=float("inf")
-        )
+    # with open("configs/rev-vae-only.yaml", "w", encoding="utf-8") as f:
+    #     yaml.safe_dump(
+    #         rev_vae_only_group.model_dump(mode="json"),
+    #         f, allow_unicode=True, default_flow_style=None, width=float("inf")
+    #     )
 
 
     #####################################
     ####    GROUP Temp Model ONLY    ####
     #####################################
     
-    for temp_model in TempModelTypes.__members__.keys():
-        temp_model_name = temp_model.lower().replace("_", "-")
-        temp_model_only_group = ConfigGroup(
-            group=[
-                Config(
-                    general=GeneralConfig(
-                        project=f"{temp_model_name}-only",
-                        name=f"{temp_model_name}-only",
-                        log_to_wandb=True,
-                        pretrained_vae_model_path="pretrained_vae/vae-model.pt",
-                        temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.REV_VAE,
-                    ),
-                    data=DataConfig(
-                        temporal_patterns=[]
-                    ),
-                    training=TrainingConfig(
-                        steps=25000,
-                        train_type=TrainTypes.TEMP_ONLY,
-                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
-                    )
-                ),
-                Config(
-                    general=GeneralConfig(
-                        project=f"{temp_model_name}-only",
-                        name=f"{temp_model_name}--all-patterns",
-                        log_to_wandb=True,
-                        pretrained_vae_model_path="pretrained_vae/vae-model.pt",
-                        temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.REV_VAE,
-                    ),
-                    data=DataConfig(
-                        temporal_patterns=[TemporalPatterns.ACCELERATION, TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION, TemporalPatterns.INTERRUPTION]
-                    ),
-                    training=TrainingConfig(
-                        steps=25000,
-                        train_type=TrainTypes.TEMP_ONLY,
-                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
-                    )
-                )
-            ]
-        )
+    # for temp_model in TempModelTypes.__members__.keys():
+    #     temp_model_name = temp_model.lower().replace("_", "-")
+    #     temp_model_only_group = ConfigGroup(
+    #         group=[
+    #             Config(
+    #                 general=GeneralConfig(
+    #                     project=f"{temp_model_name}-only",
+    #                     name=f"{temp_model_name}-only",
+    #                     log_to_wandb=True,
+    #                     pretrained_vae_model_path="pretrained_vae/vae-model.pt",
+    #                     temp_model_type=temp_model,
+    #                     vae_model_type=VaeModelTypes.REV_VAE,
+    #                 ),
+    #                 data=DataConfig(
+    #                     temporal_patterns=[]
+    #                 ),
+    #                 training=TrainingConfig(
+    #                     steps=25000,
+    #                     train_type=TrainTypes.TEMP_ONLY,
+    #                     grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
+    #                 )
+    #             )
+    #         ]
+    #     )
 
-        with open(f"configs/{temp_model_name}-only.yaml", "w", encoding="utf-8") as f:
-            yaml.safe_dump(
-                temp_model_only_group.model_dump(mode="json"),
-                f, allow_unicode=True, default_flow_style=None, width=float("inf")
-            )
+    #     with open(f"configs/{temp_model_name}-only.yaml", "w", encoding="utf-8") as f:
+    #         yaml.safe_dump(
+    #             temp_model_only_group.model_dump(mode="json"),
+    #             f, allow_unicode=True, default_flow_style=None, width=float("inf")
+    #         )
 
 
     ##########################
     ####    GROUP FULL    ####
     ##########################
-    
+
     for temp_model in TempModelTypes.__members__.keys():
-        temp_model_name = temp_model.lower().replace("_", "-") + "-vanilla-vae"
+        temp_model_name = temp_model.lower().replace("_", "-")
         temp_model_group = ConfigGroup(
             group=[
                 Config(
@@ -345,24 +343,6 @@ if __name__ == "__main__":
                 Config(
                     general=GeneralConfig(
                         project=f"{temp_model_name}",
-                        name=f"{temp_model_name}--deceleration-oscillation",
-                        log_to_wandb=True,
-                        temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.VANILLA_VAE,
-                    ),
-                    data=DataConfig(
-                        temporal_patterns=[TemporalPatterns.DECELERATION, TemporalPatterns.OSCILLATION],
-                        min_patterns=2,
-                        pattern_combining=True
-                    ),
-                    training=TrainingConfig(
-                        train_type=TrainTypes.DEFAULT,
-                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION
-                    )
-                ),
-                Config(
-                    general=GeneralConfig(
-                        project=f"{temp_model_name}",
                         name=f"{temp_model_name}--interruption",
                         log_to_wandb=True,
                         temp_model_type=temp_model,
@@ -396,7 +376,7 @@ if __name__ == "__main__":
             ]
         )
 
-        with open(f"configs/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
+        with open(f"{train_path_dir}/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
             yaml.safe_dump(
                 temp_model_group.model_dump(mode="json"),
                 f, allow_unicode=True, default_flow_style=None, width=float("inf")
@@ -408,7 +388,7 @@ if __name__ == "__main__":
     #########################
     
     for temp_model in TempModelTypes.__members__.keys():
-        temp_model_name = temp_model.lower().replace("_", "-") + "-vanilla-vae--eval"
+        temp_model_name = temp_model.lower().replace("_", "-")
         temp_model_group = ConfigGroup(
             group=[
                 Config(
@@ -433,7 +413,7 @@ if __name__ == "__main__":
             ]
         )
 
-        with open(f"configs/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
+        with open(f"{eval_path_dir}/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
             yaml.safe_dump(
                 temp_model_group.model_dump(mode="json"),
                 f, allow_unicode=True, default_flow_style=None, width=float("inf")

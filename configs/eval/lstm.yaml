@@ -4,43 +4,43 @@ group:
     angle: {max: 20, min: 5}
     batch_size: 16
     context_size: 12
-    gradual_complexity: [0.2, 0.3, 0.1, 0.1, 0.3]
+    gradual_complexity: null
     im_channels: 3
-    interruption_period: {max: 6, min: 1}
-    oscillation_period: {max: 6, min: 1}
+    interruption_period: {max: 4, min: 1}
+    min_patterns: 0
+    oscillation_period: {max: 4, min: 1}
+    pattern_combining: false
     render_window_size: 64
     temporal_patterns: []
-    time_to_pred: {max: 0, min: 0}
-  general: {log_to_wandb: true, name: temp-verse-former-rev-vae, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: temp-verse-former-rev-vae, temp_model_type: null, vae_model_type: REV_VAE}
+    time_to_pred: {max: 5, min: 1}
+  general: {log_to_wandb: true, name: lstm, pretrained_temp_model_path: null, pretrained_vae_model_path: null, project: lstm, temp_model_type: LSTM, vae_model_type: VANILLA_VAE}
   lstm: {dec_dropout: 0.5, embed_dim: 768, enc_dropout: 0.5, input_dim: 256, n_layers: 8}
+  pipe_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
   resume_training: null
   rev_transformer: {depth: 8, embed_dim: 768, input_dim: 256, n_head: 8}
   rev_vae:
     adaptive_kv_stride: 4
     adaptive_window_size: 16
-    decoder_halt_final_stage: true
-    decoder_stage_size: 4
-    decoder_stages: 6
+    attn_down: [false, false, false, true, true, true]
+    attn_up: [true, true, true, false, false, false]
+    decoder_stage_size: 2
+    down_channels: [8, 16, 32, 64, 128, 256, 384]
+    down_scale_layers: 1
     drop_path_rate: 0.0
-    encoder_jump_first_stage: true
-    encoder_stage_size: 4
-    encoder_stages: 5
+    encoder_stage_size: 2
     fast_backprop: false
     mlp_ratio: 4.0
     norm_channels: 8
-    num_heads: 1
-    patch_embed_dim: 8
-    patch_kernel: [4, 4]
-    patch_padding: [1, 1]
-    patch_stride: [2, 2]
+    num_heads_max: 16
+    num_heads_min: 1
     qkv_bias: true
-    qkv_pool_kernel: [4, 4]
     rel_pos_zero_init: true
     residual_pooling: true
+    up_scale_layers: 1
     use_abs_pos: false
     use_rel_pos: true
     z_channels: 256
-  training: {grad_calc_way: TEMP_VERSE_FORMER, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 30000, train_type: VAE_ONLY, weight_decay: 0.0}
+  training: {grad_calc_way: REVERSE_CALCULATION, kl_weight_start_step: 25000, kl_weight_warmup_steps: 5000, lr: 5.0e-06, num_reps: 1, print_freq: 10, record_freq: 10, save_image_samples_freq: 100, save_weights_freq: 1000, steps: 100, train_type: DEFAULT, weight_decay: 0.0}
   vae:
     attn_down: [false, false, false, true, true, true]
     down_channels: [8, 16, 32, 64, 128, 256, 384]
