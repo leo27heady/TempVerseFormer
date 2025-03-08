@@ -7,13 +7,9 @@ from torcheval.metrics import Metric, MeanSquaredError
 from torcheval.metrics.image import FrechetInceptionDistance
 from torchvision.utils import save_image
 
-from tempverse.metrics import StructuralSimilarity
-from tempverse.vae import VAE
-from tempverse.rev_vae import Reversible_MViT_VAE
-from tempverse.rev_transformer import RevFormer
-from tempverse.vanilla_transformer import VanillaTransformer
-from tempverse.pipe_transformer import PipeTransformer
-from tempverse.lstm import Seq2SeqLSTM
+from .metrics import StructuralSimilarity
+from .vae_models import VAE, Reversible_MViT_VAE
+from .temp_models import RevFormer, VanillaTransformer, PipeTransformer, Seq2SeqLSTM
 
 
 class Validator():

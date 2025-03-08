@@ -173,7 +173,7 @@ cython_debug/
 # Other files
 tempverse/shape_data_stream/simple_shape_rotation
 results
-eval_results
+trained_models
 eval_results
 wandb
 pretrained_vae

@@ -16,7 +16,6 @@ def seed_everything(seed: int = 42) -> None:
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
 def create_timestamp() -> str:
     now = datetime.now()
     return now.strftime("%Y_%m_%d %H_%M_%S")

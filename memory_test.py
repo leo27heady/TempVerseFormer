@@ -10,12 +10,8 @@ from calflops import calculate_flops
 
 from tempverse.config import Config, DataConfig, GeneralConfig, TrainingConfig, IntervalModel, TempModelTypes, VaeModelTypes, GradientCalculationWays, TrainTypes
 from tempverse.shape_data_stream import MockShapeDataset
-from tempverse.vae import VAE
-from tempverse.rev_vae import Reversible_MViT_VAE
-from tempverse.rev_transformer import RevFormer
-from tempverse.vanilla_transformer import VanillaTransformer
-from tempverse.pipe_transformer import PipeTransformer
-from tempverse.lstm import Seq2SeqLSTM
+from tempverse.vae_models import VAE, Reversible_MViT_VAE
+from tempverse.temp_models import RevFormer, VanillaTransformer, PipeTransformer, Seq2SeqLSTM
 from tempverse.trainer import Trainer
 from tempverse.utils import BaseLogger, seed_everything, create_timestamp, convert_bytes
 

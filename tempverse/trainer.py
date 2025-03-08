@@ -8,12 +8,8 @@ from lpips import LPIPS
 from einops import rearrange
 from torchvision.utils import save_image
 
-from .vae import VAE
-from .rev_vae import Reversible_MViT_VAE
-from .rev_transformer import RevFormer
-from .vanilla_transformer import VanillaTransformer
-from tempverse.pipe_transformer import PipeTransformer
-from .lstm import Seq2SeqLSTM
+from .vae_models import VAE, Reversible_MViT_VAE
+from .temp_models import RevFormer, VanillaTransformer, PipeTransformer, Seq2SeqLSTM
 from .config import TrainingConfig, TrainTypes
 from .utils import BaseLogger
 
