@@ -3,7 +3,7 @@ from torch import nn
 from torch.autograd import Function as Function
 from torch.nn import MultiheadAttention as MHA
 
-from ..rev_back_prop import ReversibleModule
+from tempverse.rev_back_prop import ReversibleModule
 
 
 class MLPSubblock(nn.Module):

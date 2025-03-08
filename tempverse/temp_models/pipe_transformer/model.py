@@ -3,7 +3,7 @@ from torch import nn
 from torch.autograd import Function as Function
 from einops import rearrange
 
-from ..config import PipeTransformerConfig
+from tempverse.config import PipeTransformerConfig
 from ..vanilla_transformer.block import TransformerBlock
 
 

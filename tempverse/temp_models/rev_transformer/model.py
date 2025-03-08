@@ -4,10 +4,10 @@ from torch.autograd import Function as Function
 from einops import rearrange
 from timm.models.layers import trunc_normal_
 
+from tempverse.rev_back_prop import NotReversibleModule, EfficientRevBackProp
+from tempverse.config import ReverseTransformerConfig, GradientCalculationWays
+from tempverse.utils import BaseLogger
 from .block import ReversibleBlock
-from ..rev_back_prop import NotReversibleModule, EfficientRevBackProp
-from ..config import ReverseTransformerConfig, GradientCalculationWays
-from ..utils import BaseLogger
 
 
 class InputProjectionModule(NotReversibleModule):

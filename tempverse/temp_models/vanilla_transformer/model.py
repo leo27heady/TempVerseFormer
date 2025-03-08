@@ -3,8 +3,8 @@ from torch import nn
 from torch.autograd import Function as Function
 from einops import rearrange
 
+from tempverse.config import VanillaTransformerConfig
 from .block import TransformerBlock
-from ..config import VanillaTransformerConfig
 
 
 class VanillaTransformer(nn.Module):

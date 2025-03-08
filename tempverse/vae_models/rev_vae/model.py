@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from timm.models.layers import trunc_normal_
 
+from tempverse.config import ReversibleVaeConfig, GradientCalculationWays
 from .encoder import Rev_MViT_Encoder
 from .decoder import Rev_MViT_Decoder
-from ..config import ReversibleVaeConfig, GradientCalculationWays
 
 
 class Reversible_MViT_VAE(nn.Module):

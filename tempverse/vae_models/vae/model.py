@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from .blocks import DownBlock, MidBlock, UpBlock
-from ..config import VaeConfig
+from tempverse.config import VaeConfig
 
 
 class VAE(nn.Module):

@@ -5,11 +5,11 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from ..rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevBackProp
+from tempverse.rev_back_prop import ReversibleModule, NotReversibleModule, EfficientRevBackProp
+from tempverse.config import ReversibleVaeConfig, GradientCalculationWays
+from tempverse.utils import BaseLogger
 from .res_net_block import ResNetUpBlock
 from .rev_block import ReversibleMultiScaleBlock
-from ..config import ReversibleVaeConfig, GradientCalculationWays
-from ..utils import BaseLogger
 
 
 class PostQuantModule(NotReversibleModule):

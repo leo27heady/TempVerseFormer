@@ -3,7 +3,7 @@ import torch.nn as nn
 from timm.models.layers import DropPath, Mlp
 
 from tempverse.utils import BaseLogger
-from ..rev_back_prop import NotReversibleModule
+from tempverse.rev_back_prop import NotReversibleModule
 from .utils import attention_pool
 from .ms_attention import MultiScaleAttention
 

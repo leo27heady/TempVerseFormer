@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
+from tempverse.config import LSTM_Config
 from .encoder import Encoder
 from .decoder import Decoder
-from ..config import LSTM_Config
 
 
 class Seq2SeqLSTM(nn.Module):
