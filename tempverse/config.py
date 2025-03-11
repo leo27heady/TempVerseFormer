@@ -376,43 +376,27 @@ if __name__ == "__main__":
             ]
         )
 
+        # save training config
         with open(f"{train_path_dir}/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
             yaml.safe_dump(
                 temp_model_group.model_dump(mode="json"),
                 f, allow_unicode=True, default_flow_style=None, width=float("inf")
             )
 
-
-    #########################
-    ####    GROUP Eval   ####
-    #########################
-    
-    for temp_model in TempModelTypes.__members__.keys():
-        temp_model_name = temp_model.lower().replace("_", "-")
-        temp_model_group = ConfigGroup(
-            group=[
-                Config(
-                    general=GeneralConfig(
-                        project=f"{temp_model_name}",
-                        name=f"{temp_model_name}",
-                        log_to_wandb=True,
-                        temp_model_type=temp_model,
-                        vae_model_type=VaeModelTypes.VANILLA_VAE,
-                    ),
-                    data=DataConfig(
-                        temporal_patterns=[],
-                        gradual_complexity=None,
-                        batch_size=16
-                    ),
-                    training=TrainingConfig(
-                        train_type=TrainTypes.DEFAULT,
-                        grad_calc_way=GradientCalculationWays.REVERSE_CALCULATION,
-                        steps=100
-                    )
-                )
-            ]
-        )
-
+        # prepare and save eval config
+        eval_group = []
+        for config in temp_model_group.group:
+            models_path = f"trained_models/{config.general.project}/{config.general.name}"
+            Path(models_path).mkdir(parents=True, exist_ok=True)  # prepare place for the models
+            config.general.pretrained_temp_model_path = f"{models_path}/temp-model.pt"
+            config.general.pretrained_vae_model_path = f"{models_path}/vae-model.pt"
+            config.data.gradual_complexity = None
+            config.data.time_to_pred.max = 12
+            config.data.batch_size = 4
+            config.training.steps = 500
+            eval_group.append(config)
+        temp_model_group.group = eval_group
+        
         with open(f"{eval_path_dir}/{temp_model_name}.yaml", "w", encoding="utf-8") as f:
             yaml.safe_dump(
                 temp_model_group.model_dump(mode="json"),

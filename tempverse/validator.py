@@ -8,6 +8,7 @@ from torcheval.metrics.image import FrechetInceptionDistance
 from torchvision.utils import save_image
 
 from .metrics import StructuralSimilarity
+from .config import IntervalModel
 from .vae_models import VAE, Reversible_MViT_VAE
 from .temp_models import RevFormer, VanillaTransformer, PipeTransformer, Seq2SeqLSTM
 
@@ -19,6 +20,7 @@ class Validator():
         model,
         vae_model, 
         device,
+        time_to_pred: IntervalModel,
         save_dir: str
     ) -> None:
 
@@ -27,11 +29,13 @@ class Validator():
         self.device = device
         self.save_dir = save_dir
 
-        self.metrics: dict[str, Metric] = {
-            "mse": MeanSquaredError(device=self.device),
-            "fid": FrechetInceptionDistance(device=self.device),
-            "ssim": StructuralSimilarity(device=self.device),
-        }
+        self.metrics: dict[str, Metric] = {}
+        for t in range(time_to_pred.min, time_to_pred.max + 1):
+            self.metrics |= {
+                f"mse_{t}": MeanSquaredError(device=self.device),
+                f"fid_{t}": FrechetInceptionDistance(device=self.device),
+                f"ssim_{t}": StructuralSimilarity(device=self.device),
+            }
 
     def validate(self, metric: Metric, input: torch.Tensor, target: torch.Tensor) -> float | None:
         if isinstance(metric, MeanSquaredError):
@@ -110,15 +114,17 @@ class Validator():
         context_size = images_count - time_to_pred
 
         input_images = images[:, :context_size]
-        if isinstance(self.model, Seq2SeqLSTM) or isinstance(self.model, PipeTransformer):
-            expected_images = images[:, -time_to_pred:]
-        else:
-            expected_images = images[:, -context_size:]
 
         z, _ = self.vae_model.encode(rearrange(input_images, "b t c w h -> (b t) c w h"))
         y_pred = self.model(rearrange(z, "(b t) c w h -> b t c w h", b=batch_size, t=context_size), time_to_pred)
         decoder_output = self.vae_model.decode(rearrange(y_pred, "b t c w h -> (b t) c w h"))
         decoder_output = rearrange(decoder_output, "(b t) c w h -> b t c w h", b=batch_size, t=y_pred.shape[1])
+
+        if isinstance(self.model, Seq2SeqLSTM) or isinstance(self.model, PipeTransformer):
+            decoder_output = decoder_output[:, -time_to_pred:]
+            expected_images = images[:, -time_to_pred:]
+        else:
+            expected_images = images[:, -context_size:]
 
         self.save_predictions(
             decoder_output, expected_images,
@@ -126,6 +132,7 @@ class Validator():
         )
 
         return {
-            name: self.validate(metric, decoder_output, expected_images)
+            name: self.validate(metric, decoder_output[:, [-1]], expected_images[:, [-1]])
             for name, metric in self.metrics.items()
+            if int(name.split("_")[-1]) == time_to_pred
         }

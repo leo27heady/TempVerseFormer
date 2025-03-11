@@ -84,14 +84,11 @@ if __name__ == "__main__":
         vae_model = vae_model.eval().requires_grad_(False)
         
         directory = f"eval_results/metrics/{run_timestamp}/{config.general.name}"
-        validator = Validator(model, vae_model, device, directory)
+        validator = Validator(model, vae_model, device, config.data.time_to_pred, directory)
         data_loader = DataLoader(ShapeDataset(device, config.data, 0, 1), batch_size=1)
 
-        run_timestamp = create_timestamp()
         results: dict[str, list[float]] = {}
         for step, (batch_t, images, angles, temp_patterns) in enumerate(data_loader, start=1):
-            logger.info(f"Start step #{step} processing")
-            
             batch_t = batch_t.squeeze(dim=0).to(device=device)
             images = images.squeeze(dim=0).to(device=device)
             angles = angles.squeeze(dim=0).to(device=device)
@@ -99,6 +96,7 @@ if __name__ == "__main__":
             
             time_to_pred = len(batch_t)
 
+            logger.info(f"Start step #{step} processing: time_to_pred={time_to_pred}.")
             step_res = validator.run(images, f"{step}", time_to_pred, angles, temp_patterns)
             logger.info(f"Step results {step_res}")
             for metric_name, metric_value in step_res.items():
@@ -108,14 +106,37 @@ if __name__ == "__main__":
             
             if step == config.training.steps:
                 break
-        
-        mean_results = {
-            metric_name: np.mean(metric_values)
-            for metric_name, metric_values in results.items()
-        }
-        mean_results["fid"] = validator.metrics["fid"].compute().item()
-        validator.metrics["fid"].reset()
 
+        # Calculate mean for all the steps and metrics
+        time_step_mean_results, multi_time_step_mean_results = {}, {}
+        for t in range(config.data.time_to_pred.min, config.data.time_to_pred.max + 1):
+            time_step_results = {
+                "fid": validator.metrics[f"fid_{t}"].compute().item()
+            }
+            validator.metrics[f"fid_{t}"].reset()
+            
+            # Calculate mean for a time step
+            for metric_name_time_step, metric_values in results.items():
+                metric_name, time_step = metric_name_time_step.split("_")
+                if t == int(time_step):
+                    time_step_results[metric_name] = np.mean(metric_values)
+            
+            time_step_mean_results[t] = time_step_results
+
+            # Calculate mean over multiple time steps
+            multi_time_step_results = {}
+            for metric_name in time_step_mean_results[t].keys():
+                multi_time_step_results[metric_name] = np.mean([
+                    time_step_mean_results[processed_t][metric_name]
+                    for processed_t in range(config.data.time_to_pred.min, t + 1)
+                ])
+            multi_time_step_mean_results[f"{config.data.time_to_pred.min}-{t}"] = multi_time_step_results
+
+        # Save the results
+        mean_results = {
+            "time_steps": time_step_mean_results,
+            "multi_time_steps": multi_time_step_mean_results
+        }
         with open(f"{directory}/metrics.json", "w", encoding="utf-8") as f:
             json.dump(mean_results, f, ensure_ascii=False, indent=4)
 

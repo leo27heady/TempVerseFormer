@@ -11,6 +11,7 @@ class EfficientRevBackProp(Function):
     and (B) activation recomputation reversibly in backward for gradient
     calculation. Inspired by
     https://github.com/RobinBruegger/RevTorch/blob/master/revtorch/revtorch.py
+    and https://github.com/karttikeya/minREV/blob/main/rev.py#L121-L184
     """
 
     @staticmethod

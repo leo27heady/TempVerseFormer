@@ -238,12 +238,12 @@ class Trainer():
                 
                 match self.training_config.train_type:
                     case TrainTypes.DEFAULT:
-                        torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
+                        torch.save(self.model.state_dict(), save_model_path / "temp-model.pt")
                         torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
                     case TrainTypes.VAE_ONLY:
                         torch.save(self.vae_model.state_dict(), save_model_path / "vae-model.pt")
                     case TrainTypes.TEMP_ONLY:
-                        torch.save(self.model.state_dict(), save_model_path / "main-model.pt")
+                        torch.save(self.model.state_dict(), save_model_path / "temp-model.pt")
 
             if step == self.training_config.steps:
                 break
