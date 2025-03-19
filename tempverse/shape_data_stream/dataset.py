@@ -4,8 +4,8 @@ import torch
 import numpy as np
 from torchvision import transforms
 from torch.utils.data import IterableDataset
+from shapekit import Scene, SceneType, Random2DShapeCreator
 
-from .simple_shape_rotation import Scene, SceneType, Random2DShapeCreator, ShapeRotator, CreateShapeException
 from ..config import DataConfig, TemporalPatterns
 
 
