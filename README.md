@@ -1,7 +1,7 @@
 # TempVerseFormer: Memory-Efficient Temporal Modeling with Reversible Transformers
 
-[![GitHub Code](https://img.shields.io/github/v/release/leo27heady/TempVerseFormer?style=flat-square)](https://github.com/leo27heady/TempVerseFormer)
-[![Shape Dataset Toolbox](https://img.shields.io/github/v/release/leo27heady/simple-shape-dataset-toolbox?label=Shape%20Dataset&style=flat-square)](https://github.com/leo27heady/simple-shape-dataset-toolbox)
+[![GitHub Code](https://img.shields.io/github/v/release/leo27heady/TempVerseFormer?label=TempVerseFormer&style=flat-square)](https://github.com/leo27heady/TempVerseFormer)
+[![Shape Dataset Toolbox](https://img.shields.io/github/v/release/leo27heady/simple-shape-dataset-toolbox?label=shapekit&style=flat-square)](https://github.com/leo27heady/simple-shape-dataset-toolbox)
 [![WandB Log Examples](https://img.shields.io/badge/WandB-Training%20Logs-blue?style=flat-square&logo=wandb)](https://wandb.ai/leo27heady)
 [![Hugging Face Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Trained%20Models-blue?style=flat-square&logo=huggingface)](https://huggingface.co/LKyluk/TempVerseFormer)
 
