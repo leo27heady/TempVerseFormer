@@ -2,7 +2,7 @@
 
 [![GitHub Code](https://img.shields.io/github/v/release/leo27heady/TempVerseFormer?label=TempVerseFormer&style=flat-square)](https://github.com/leo27heady/TempVerseFormer)
 [![Shape Dataset Toolbox](https://img.shields.io/github/v/release/leo27heady/simple-shape-dataset-toolbox?label=shapekit&style=flat-square)](https://github.com/leo27heady/simple-shape-dataset-toolbox)
-[![WandB Log Examples](https://img.shields.io/badge/WandB-Training%20Logs-blue?style=flat-square&logo=wandb)](https://wandb.ai/leo27heady)
+[![WandB Logs](https://img.shields.io/badge/WandB-Training%20Logs-blue?style=flat-square&logo=wandb)](https://wandb.ai/leo27heady/pipe-transformer/reports/TempVerseFormer-Training-Logs--VmlldzoxMTg3OTQ3NQ)
 [![Hugging Face Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Trained%20Models-blue?style=flat-square&logo=huggingface)](https://huggingface.co/LKyluk/TempVerseFormer)
 
 This repository contains the code and resources for the research article: **"Temporal Modeling with Reversible Transformers"**. This work introduces **TempVerseFormer**, a novel deep learning architecture designed for memory-efficient temporal sequence modeling. TempVerseFormer leverages reversible transformer blocks and a time-agnostic backpropagation strategy to decouple memory consumption from temporal depth, enabling efficient training on long prediction horizons.
