@@ -115,6 +115,7 @@ The `memory_test.py` script runs memory tests for various model combinations, ba
 ## Pre-trained Models
 
 Pre-trained models for TempVerseFormer and baseline architectures are available on the Hugging Face Hub: [https://huggingface.co/LKyluk/TempVerseFormer](https://huggingface.co/LKyluk/TempVerseFormer).
+The training logs and metrics can be found on the author's WandB: [TempVerseFormer Training Logs](https://wandb.ai/leo27heady/pipe-transformer/reports/TempVerseFormer-Training-Logs--VmlldzoxMTg3OTQ3NQ).
 
 Download the desired model checkpoints and place them in the `trained_models` directory, following the paths specified in the evaluation configuration files (`configs/eval`).
 
