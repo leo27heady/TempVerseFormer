@@ -19,7 +19,7 @@ pip install -e .
 cd ..
 
 # Remove the cloned repository
-rm -rf "$REPO_NAME"
+# rm -rf "$REPO_NAME"
 
 echo "shapekit library has successfully installed!"
 

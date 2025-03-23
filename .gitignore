@@ -171,6 +171,7 @@ cython_debug/
 .pypirc
 
 # Other files
+simple-shape-dataset-toolbox
 results
 trained_models
 eval_results
