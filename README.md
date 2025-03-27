@@ -7,6 +7,9 @@
 
 This repository contains the code and resources for the research article: **"Temporal Modeling with Reversible Transformers"**. This work introduces **TempVerseFormer**, a novel deep learning architecture designed for memory-efficient temporal sequence modeling. TempVerseFormer leverages reversible transformer blocks and a time-agnostic backpropagation strategy to decouple memory consumption from temporal depth, enabling efficient training on long prediction horizons.
 
+Explore the results in our preprint: [Research Square Preprint](https://www.researchsquare.com/article/rs-6293520/latest).
+DOI: https://doi.org/10.21203/rs.3.rs-6293520/v1
+
 **Key Features:**
 
 * **Memory Efficiency:** Achieves near-constant memory footprint regardless of prediction time, enabling training on long sequences.
