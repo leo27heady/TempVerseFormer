@@ -16,7 +16,7 @@ DOI: https://doi.org/10.21203/rs.3.rs-6293520/v1
 * **Reversible Architecture:** Utilizes reversible transformer blocks inspired by RevViT to eliminate the need for storing intermediate activations.
 * **Time-Agnostic Backpropagation:** Implements a novel backpropagation method that reconstructs activations on-demand, further enhancing memory efficiency.
 * **Temporal Chaining:** Employs a feedback mechanism inspired by Bytelatent Transformer to iteratively predict future states, allowing for long-range temporal modeling.
-* **Synthetic Dataset:** Provides a procedurally generated dataset of rotating 2D shapes for controlled experiments and evaluation of temporal modeling capabilities.
+* **Synthetic Dataset:** Provides a procedurally generated dataset ([shapekit](https://github.com/leo27heady/simple-shape-dataset-toolbox)) of rotating 2D shapes for controlled experiments and evaluation of temporal modeling capabilities.
 * **Performance Benchmarking:** Includes code and scripts for evaluating TempVerseFormer against the baselines.
 
 Below you'll find instructions on how to set up the environment, train models, evaluate performance, and reproduce the memory efficiency experiments presented in the article.
